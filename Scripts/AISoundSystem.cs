@@ -1,33 +1,18 @@
 using UnityEngine;
 
 /// <summary>
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// AI SOUND SYSTEM - Enemy voice lines and alert sounds
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// 
-/// FEATURES:
-/// - State-based voice lines (patrol, alert, chase, etc.)
-/// - Alert callouts when spotting player
-/// - Investigation mumbles
-/// - Search comments
-/// 
-/// SETUP:
-/// 1. Attach to each enemy
-/// 2. Assign AudioClips for each category
-/// 3. Script auto-plays based on AI state
-/// 
-/// ═══════════════════════════════════════════════════════════════════════════════
+/// Plays state-based voice lines and alert sounds for the enemy AI.
 /// </summary>
 [RequireComponent(typeof(AudioSource))]
 public class AISoundSystem : MonoBehaviour
 {
-    #region ═══════════════════ SETTINGS ═══════════════════
+    #region Settings
 
-    [Header("═══ DEBUG ═══")]
+    [Header("Debug")]
     [Tooltip("Show debug logs when sounds would play")]
     [SerializeField] private bool debugMode = true;
 
-    [Header("═══ DETECTION SOUNDS ═══")]
+    [Header("Detection Sounds")]
     [Tooltip("Quick reaction when first noticing something")]
     [SerializeField] private AudioClip[] noticeSounds;        // "Huh?" "What was that?"
     
@@ -37,50 +22,50 @@ public class AISoundSystem : MonoBehaviour
     [Tooltip("Alerting other guards")]
     [SerializeField] private AudioClip[] alertSounds;         // "Over here!" "We have contact!"
 
-    [Header("═══ INVESTIGATION SOUNDS ═══")]
+    [Header("Investigation Sounds")]
     [Tooltip("While investigating a sound/disturbance")]
     [SerializeField] private AudioClip[] investigateSounds;   // "I'll check it out" "Thought I heard something"
     
     [Tooltip("When finding nothing")]
     [SerializeField] private AudioClip[] nothingFoundSounds;  // "Must be nothing" "All clear"
 
-    [Header("═══ SEARCH SOUNDS ═══")]
+    [Header("Search Sounds")]
     [Tooltip("While searching for lost player")]
     [SerializeField] private AudioClip[] searchSounds;        // "Where did you go?" "Come out!"
     
     [Tooltip("When giving up search")]
     [SerializeField] private AudioClip[] giveUpSounds;        // "Lost them" "They got away"
 
-    [Header("═══ CHASE SOUNDS ═══")]
+    [Header("Chase Sounds")]
     [Tooltip("During active pursuit")]
     [SerializeField] private AudioClip[] chaseSounds;         // "Stop!" "Get back here!"
 
-    [Header("═══ PATROL SOUNDS ═══")]
+    [Header("Patrol Sounds")]
     [Tooltip("Idle chatter while patrolling")]
     [SerializeField] private AudioClip[] patrolSounds;        // Humming, yawning, mumbling
 
-    [Header("═══ RESPOND ALERT SOUNDS ═══")]
+    [Header("Respond Alert Sounds")]
     [Tooltip("When responding to another guard's alert")]
     [SerializeField] private AudioClip[] respondSounds;       // "On my way!" "I'm coming!"
 
-    [Header("═══ VOLUME SETTINGS ═══")]
+    [Header("Volume Settings")]
     [SerializeField] private float normalVolume = 0.7f;
     [SerializeField] private float alertVolume = 1.0f;
     [SerializeField] private float whisperVolume = 0.4f;
 
-    [Header("═══ COOLDOWNS ═══")]
+    [Header("Cooldowns")]
     [SerializeField] private float patrolSoundInterval = 15f;
     [SerializeField] private float searchSoundInterval = 5f;
     [SerializeField] private float chaseSoundInterval = 3f;
     [SerializeField] private float minTimeBetweenSounds = 1f;
 
-    [Header("═══ PITCH VARIATION ═══")]
+    [Header("Pitch Variation")]
     [SerializeField] private float minPitch = 0.95f;
     [SerializeField] private float maxPitch = 1.05f;
 
     #endregion
 
-    #region ═══════════════════ PRIVATE FIELDS ═══════════════════
+    #region Private Fields
 
     private AudioSource audioSource;
     private EnemyAI_Advanced aiController;
@@ -96,7 +81,7 @@ public class AISoundSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ UNITY LIFECYCLE ═══════════════════
+    #region Unity Lifecycle
 
     private void Awake()
     {
@@ -138,7 +123,7 @@ public class AISoundSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ STATE CHANGE HANDLING ═══════════════════
+    #region State Change Handling
 
     private void HandleStateChange(EnemyAI_Advanced.AIState newState)
     {
@@ -197,7 +182,7 @@ public class AISoundSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ PERIODIC SOUNDS ═══════════════════
+    #region Periodic Sounds
 
     private void HandlePeriodicSounds()
     {
@@ -233,7 +218,7 @@ public class AISoundSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ SOUND PLAYBACK ═══════════════════
+    #region Sound Playback
 
     private void PlayRandomSound(AudioClip[] clips, float volume, string category = "")
     {
@@ -243,14 +228,14 @@ public class AISoundSystem : MonoBehaviour
         if (debugMode)
         {
             string catName = !string.IsNullOrEmpty(category) ? category : GetCategoryName(clips);
-            Debug.Log($"[AISoundSystem] 🔊 {gameObject.name}: Playing {catName} (Volume: {volume:F2})");
+            Debug.Log($"[AISoundSystem] {gameObject.name}: Playing {catName} (Volume: {volume:F2})");
         }
 
         if (clips == null || clips.Length == 0) 
         {
             if (debugMode)
             {
-                Debug.LogWarning($"[AISoundSystem] ⚠️ {gameObject.name}: No audio clips assigned! Add clips in Inspector.");
+                Debug.LogWarning($"[AISoundSystem] {gameObject.name}: No audio clips assigned! Add clips in Inspector.");
             }
             return;
         }
@@ -293,7 +278,7 @@ public class AISoundSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ PUBLIC METHODS ═══════════════════
+    #region Public Methods
 
     /// <summary>
     /// Force play a specific sound type

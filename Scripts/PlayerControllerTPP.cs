@@ -1,39 +1,29 @@
 using UnityEngine;
 
 /// <summary>
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// PLAYER CONTROLLER - Third Person Movement
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// 
-/// FEATURES:
-/// - WASD movement relative to camera direction
-/// - Sprint with Shift
-/// - Smooth rotation to face movement direction
-/// - Works with TPPCameraController
-/// 
-/// ═══════════════════════════════════════════════════════════════════════════════
+/// Plays third-person player movement relative to camera direction with sprint support.
 /// </summary>
 [RequireComponent(typeof(CharacterController))]
 public class PlayerControllerTPP : MonoBehaviour
 {
-    #region ═══════════════════ SETTINGS ═══════════════════
+#region Settings
 
-    [Header("═══ MOVEMENT ═══")]
+    [Header("Movement")]
     [SerializeField] private float walkSpeed = 4f;
     [SerializeField] private float sprintSpeed = 7f;
     [SerializeField] private float rotationSpeed = 10f;
     
-    [Header("═══ GRAVITY ═══")]
+    [Header("Gravity")]
     [SerializeField] private float gravity = -15f;
     [SerializeField] private float groundCheckDistance = 0.2f;
     [SerializeField] private LayerMask groundMask;
 
-    [Header("═══ CONTROLS ═══")]
+    [Header("Controls")]
     [SerializeField] private KeyCode sprintKey = KeyCode.LeftShift;
 
     #endregion
 
-    #region ═══════════════════ PRIVATE FIELDS ═══════════════════
+#region Private Fields
 
     private CharacterController controller;
     private Transform cameraTransform;
@@ -44,7 +34,7 @@ public class PlayerControllerTPP : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ PUBLIC PROPERTIES ═══════════════════
+#region Public Properties
 
     public bool IsMoving { get; private set; }
     public bool IsSprinting { get; private set; }
@@ -53,7 +43,7 @@ public class PlayerControllerTPP : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ UNITY LIFECYCLE ═══════════════════
+#region Unity Lifecycle
 
     private void Awake()
     {
@@ -79,7 +69,7 @@ public class PlayerControllerTPP : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ MOVEMENT ═══════════════════
+#region Movement
 
     private void GroundCheck()
     {
@@ -155,7 +145,7 @@ public class PlayerControllerTPP : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ DEBUG ═══════════════════
+#region Debug
 
     private void OnDrawGizmosSelected()
     {

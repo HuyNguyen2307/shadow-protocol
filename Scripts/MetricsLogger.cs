@@ -5,25 +5,18 @@ using System.IO;
 using System.Text;
 
 /// <summary>
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// METRICS LOGGER - Supports MULTIPLE Enemies (FSM & BT)
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// 
-/// Logs metrics for ALL enemies in the scene.
-/// Tracks nearest enemy state for primary metrics.
-/// 
-/// ═══════════════════════════════════════════════════════════════════════════════
+/// Logs AI state metrics for all enemies to a CSV file for FSM vs BT analysis.
 /// </summary>
 public class MetricsLogger : MonoBehaviour
 {
-    // ==================== AI TYPE ====================
+    // AI TYPE
     public enum AIType { Unknown, FSM, BehaviorTree, Mixed }
     
     [Header("Detected AI")]
     [SerializeField] private AIType detectedAIType = AIType.Unknown;
     [SerializeField] private int enemyCount = 0;
 
-    // ==================== REFERENCES ====================
+    // REFERENCES
     [Header("References (Auto-assigned)")]
     public GameManager gameManager;
     
@@ -32,7 +25,7 @@ public class MetricsLogger : MonoBehaviour
     private List<EnemyAI_BT> enemyAI_BTs = new List<EnemyAI_BT>();
     private List<VisionSensor> visionSensors = new List<VisionSensor>();
 
-    // ==================== SETTINGS ====================
+    // SETTINGS
     [Header("Logging Settings")]
     public float logInterval = 0.1f;
     public float flushInterval = 2.0f;
@@ -42,7 +35,7 @@ public class MetricsLogger : MonoBehaviour
     public bool showDebugMessages = true;
     public bool showFilePathUI = true;
 
-    // ==================== INTERNAL ====================
+    // INTERNAL
     private string filePath;
     private string fileName;
     private List<string> logBuffer;
@@ -58,10 +51,10 @@ public class MetricsLogger : MonoBehaviour
     // State tracking for events
     private Dictionary<int, string> previousStates = new Dictionary<int, string>();
 
-    // ==================== CSV COLUMNS ====================
+    // CSV COLUMNS
     private const string CSV_HEADER = "t,ai_type,enemy_count,any_chasing,nearest_state,max_detection,event,bt_total_evals,bt_total_switches";
 
-    // ==================== EVENT TYPES ====================
+    // EVENT TYPES
     private const string EVENT_NONE = "";
     private const string EVENT_STATE_CHANGE = "STATE_CHANGE";
     private const string EVENT_WIN = "WIN";
@@ -69,7 +62,7 @@ public class MetricsLogger : MonoBehaviour
     private const string EVENT_SESSION_START = "SESSION_START";
     private const string EVENT_SESSION_END = "SESSION_END";
 
-    // ==================== INITIALIZATION ====================
+    // INITIALIZATION
 
     private void Awake()
     {
@@ -234,7 +227,7 @@ public class MetricsLogger : MonoBehaviour
         }
     }
 
-    // ==================== UPDATE ====================
+    // UPDATE
 
     private void Update()
     {
@@ -257,7 +250,7 @@ public class MetricsLogger : MonoBehaviour
         }
     }
 
-    // ==================== EVENT HANDLERS ====================
+    // EVENT HANDLERS
 
     private void HandleStateChanged(int enemyId, string newState)
     {
@@ -280,7 +273,7 @@ public class MetricsLogger : MonoBehaviour
         FlushBuffer();
     }
 
-    // ==================== LOGGING ====================
+    // LOGGING
 
     private void LogCurrentState()
     {
@@ -311,7 +304,7 @@ public class MetricsLogger : MonoBehaviour
         totalRowsLogged++;
     }
 
-    // ==================== DATA GETTERS ====================
+    // DATA GETTERS
 
     private float GetCurrentTime()
     {
@@ -407,7 +400,7 @@ public class MetricsLogger : MonoBehaviour
         return total;
     }
 
-    // ==================== FILE OPERATIONS ====================
+    // FILE OPERATIONS
 
     private void FlushBuffer()
     {
@@ -448,7 +441,7 @@ public class MetricsLogger : MonoBehaviour
         return value;
     }
 
-    // ==================== PUBLIC METHODS ====================
+    // PUBLIC METHODS
 
     public string GetFilePath() => filePath;
     public (int rows, int events) GetStats() => (totalRowsLogged, totalEventsLogged);
@@ -468,7 +461,7 @@ public class MetricsLogger : MonoBehaviour
         #endif
     }
 
-    // ==================== DEBUG UI ====================
+    // DEBUG UI
 
     private void OnGUI()
     {

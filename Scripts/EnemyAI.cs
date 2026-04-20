@@ -17,7 +17,7 @@ using System.Collections;
 [RequireComponent(typeof(VisionSensor))]
 public class EnemyAI : MonoBehaviour
 {
-    // ==================== FSM STATE ====================
+    // FSM STATE
     public enum AIState
     {
         PATROL,
@@ -31,7 +31,7 @@ public class EnemyAI : MonoBehaviour
     
     [SerializeField] private AIState state = AIState.PATROL;
 
-    // ==================== REFERENCES ====================
+    // REFERENCES
     [Header("References")]
     [Tooltip("VisionSensor component (auto-assigned if on same object)")]
     public VisionSensor sensor;
@@ -42,7 +42,7 @@ public class EnemyAI : MonoBehaviour
     [Tooltip("Waypoints for patrol route")]
     public Transform[] waypoints;
 
-    // ==================== PATROL SETTINGS ====================
+    // PATROL SETTINGS
     [Header("Patrol Settings")]
     [Tooltip("Time to wait at each waypoint")]
     public float waitSeconds = 1.0f;
@@ -50,7 +50,7 @@ public class EnemyAI : MonoBehaviour
     [Tooltip("Walking speed during patrol")]
     public float patrolSpeed = 2.5f;
 
-    // ==================== CHASE SETTINGS ====================
+    // CHASE SETTINGS
     [Header("Chase Settings")]
     [Tooltip("Running speed when chasing player")]
     public float chaseSpeed = 5.0f;
@@ -61,7 +61,7 @@ public class EnemyAI : MonoBehaviour
     [Tooltip("Distance at which enemy catches player (game over)")]
     public float catchDistance = 1.5f;
 
-    // ==================== SEARCH SETTINGS ====================
+    // SEARCH SETTINGS
     [Header("Search Settings")]
     [Tooltip("How long to search at last known position")]
     public float searchDuration = 5.0f;
@@ -72,7 +72,7 @@ public class EnemyAI : MonoBehaviour
     [Tooltip("Speed when moving to search location")]
     public float searchSpeed = 3.5f;
 
-    // ==================== DEBUG ====================
+    // DEBUG
     [Header("Debug")]
     [SerializeField] private bool showDebugGizmos = true;
     [SerializeField] private bool showDebugUI = true;
@@ -80,18 +80,18 @@ public class EnemyAI : MonoBehaviour
     [SerializeField] private Color chaseColor = Color.red;
     [SerializeField] private Color searchColor = Color.yellow;
 
-    // ==================== COMPONENTS ====================
+    // COMPONENTS
     private NavMeshAgent agent;
 
-    // ==================== PATROL STATE ====================
+    // PATROL STATE
     private int currentWaypointIndex = 0;
     private bool isWaitingAtWaypoint = false;
 
-    // ==================== CHASE STATE ====================
+    // CHASE STATE
     private float lastSeenTime;
     private float timeSinceLastSeen => Time.time - lastSeenTime;
 
-    // ==================== SEARCH STATE ====================
+    // SEARCH STATE
     private Vector3 searchPosition;
     private float searchStartTime;
     private bool hasReachedSearchPosition = false;
@@ -101,13 +101,13 @@ public class EnemyAI : MonoBehaviour
     public System.Action<AIState> OnStateChanged;
     public System.Action OnPlayerCaught;
 
-    // ==================== PUBLIC PROPERTIES ====================
+    // PUBLIC PROPERTIES
     public AIState State => state;
     public int CurrentWaypointIndex => currentWaypointIndex;
     public Vector3 LastKnownPosition => sensor != null ? sensor.LastKnownPlayerPos : Vector3.zero;
     public float DetectionLevel => sensor != null ? sensor.DetectionMeter : 0f;
 
-    // ==================== INITIALIZATION ====================
+    // INITIALIZATION
     
     private void Awake()
     {
@@ -178,7 +178,7 @@ public class EnemyAI : MonoBehaviour
         }
     }
 
-    // ==================== UPDATE LOOP ====================
+    // UPDATE LOOP
     
     private void Update()
     {
@@ -449,7 +449,7 @@ public class EnemyAI : MonoBehaviour
         EnterPatrolState();
     }
 
-    // ==================== UTILITY METHODS ====================
+    // UTILITY METHODS
     
     private bool HasReachedDestination()
     {
@@ -476,7 +476,7 @@ public class EnemyAI : MonoBehaviour
         }
     }
 
-    // ==================== PUBLIC CONTROL METHODS ====================
+    // PUBLIC CONTROL METHODS
     
     /// <summary>
     /// Force enemy back to patrol state.
@@ -532,7 +532,7 @@ public class EnemyAI : MonoBehaviour
         }
     }
 
-    // ==================== DEBUG VISUALIZATION ====================
+    // DEBUG VISUALIZATION
     
     private void OnDrawGizmos()
     {

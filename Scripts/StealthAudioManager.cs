@@ -1,64 +1,53 @@
 using UnityEngine;
 
 /// <summary>
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// STEALTH AUDIO MANAGER - Central audio control
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// 
-/// FEATURES:
-/// - Background music with tension-based changes
-/// - Ambient sounds
-/// - UI feedback sounds
-/// - Detection stingers
-/// - Volume mixing
-/// 
-/// ═══════════════════════════════════════════════════════════════════════════════
+/// Central audio manager for background music, ambient sounds, and detection stingers.
 /// </summary>
 public class StealthAudioManager : MonoBehaviour
 {
-    #region ═══════════════════ SINGLETON ═══════════════════
+#region Singleton
 
     public static StealthAudioManager Instance { get; private set; }
 
     #endregion
 
-    #region ═══════════════════ SETTINGS ═══════════════════
+#region Settings
 
-    [Header("═══ DEBUG ═══")]
+    [Header("Debug")]
     [Tooltip("Show debug logs for music and audio state changes")]
     [SerializeField] private bool debugMode = true;
 
-    [Header("═══ MUSIC ═══")]
+    [Header("Music")]
     [SerializeField] private AudioClip ambientMusic;          // Calm exploration
     [SerializeField] private AudioClip tensionMusic;          // Being detected
     [SerializeField] private AudioClip chaseMusic;            // Full pursuit
     [SerializeField] private float musicTransitionSpeed = 1f;
     [SerializeField] private float musicVolume = 0.3f;
 
-    [Header("═══ AMBIENT ═══")]
+    [Header("Ambient")]
     [SerializeField] private AudioClip[] ambientSounds;       // Random ambient sounds
     [SerializeField] private float ambientInterval = 10f;
     [SerializeField] private float ambientVolume = 0.2f;
 
-    [Header("═══ STINGERS ═══")]
+    [Header("Stingers")]
     [SerializeField] private AudioClip detectionStinger;      // When detection starts
     [SerializeField] private AudioClip spottedStinger;        // When fully detected
     [SerializeField] private AudioClip escapeStinger;         // When losing enemy
     [SerializeField] private float stingerVolume = 0.6f;
 
-    [Header("═══ UI SOUNDS ═══")]
+    [Header("Ui Sounds")]
     [SerializeField] private AudioClip flashlightToggle;
     [SerializeField] private AudioClip heartbeat;             // Plays when detection high
     [SerializeField] private float heartbeatThreshold = 0.6f;
     [SerializeField] private float uiVolume = 0.5f;
 
-    [Header("═══ DETECTION FEEDBACK ═══")]
+    [Header("Detection Feedback")]
     [SerializeField] private AudioClip detectionBuildLoop;    // Tense sound while being seen
     [SerializeField] private float detectionAudioThreshold = 0.3f;
 
     #endregion
 
-    #region ═══════════════════ PRIVATE FIELDS ═══════════════════
+#region Private Fields
 
     // Audio Sources
     private AudioSource musicSource;
@@ -85,7 +74,7 @@ public class StealthAudioManager : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ UNITY LIFECYCLE ═══════════════════
+#region Unity Lifecycle
 
     private void Awake()
     {
@@ -116,7 +105,7 @@ public class StealthAudioManager : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ SETUP ═══════════════════
+#region Setup
 
     private void CreateAudioSources()
     {
@@ -154,7 +143,7 @@ public class StealthAudioManager : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ MUSIC ═══════════════════
+#region Music
 
     private void StartAmbientMusic()
     {
@@ -201,11 +190,11 @@ public class StealthAudioManager : MonoBehaviour
         // DEBUG: Log music state change
         if (debugMode)
         {
-            Debug.Log($"[AudioManager] 🎵 Music: {currentMusicState} → {newState} (Detection: {currentDetection:P0})");
+            Debug.Log($"[AudioManager] Music: {currentMusicState} → {newState} (Detection: {currentDetection:P0})");
         }
 
         AudioClip newClip = null;
-        
+
         switch (newState)
         {
             case MusicState.Ambient:
@@ -225,7 +214,7 @@ public class StealthAudioManager : MonoBehaviour
         }
         else if (newClip == null && debugMode)
         {
-            Debug.LogWarning($"[AudioManager] ⚠️ No music clip assigned for {newState}! Add clip in Inspector.");
+            Debug.LogWarning($"[AudioManager] No music clip assigned for {newState}! Add clip in Inspector.");
         }
 
         currentMusicState = newState;
@@ -257,7 +246,7 @@ public class StealthAudioManager : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ HEARTBEAT ═══════════════════
+#region Heartbeat
 
     private void UpdateHeartbeat()
     {
@@ -288,7 +277,7 @@ public class StealthAudioManager : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ DETECTION AUDIO ═══════════════════
+#region Detection Audio
 
     private void UpdateDetectionAudio()
     {
@@ -329,7 +318,7 @@ public class StealthAudioManager : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ AMBIENT SOUNDS ═══════════════════
+#region Ambient Sounds
 
     private void UpdateAmbientSounds()
     {
@@ -353,7 +342,7 @@ public class StealthAudioManager : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ PUBLIC METHODS ═══════════════════
+#region Public Methods
 
     /// <summary>
     /// Play a stinger sound

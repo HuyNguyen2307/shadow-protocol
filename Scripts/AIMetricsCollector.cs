@@ -4,43 +4,27 @@ using System.Text;
 using System.IO;
 
 /// <summary>
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// AI METRICS COLLECTOR - Compare FSM vs BT Performance
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// 
-/// Collects runtime data for academic comparison:
-/// - State/Node transition counts
-/// - Time spent in each state
-/// - Response time to player detection
-/// - Decision-making frequency
-/// - Memory usage estimates
-/// 
-/// USAGE:
-/// 1. Add to scene
-/// 2. Play game for 2-3 minutes
-/// 3. Press M to export metrics
-/// 4. Use data in report
-/// 
-/// ═══════════════════════════════════════════════════════════════════════════════
+/// Collects and exports runtime AI metrics for FSM vs Behavior Tree comparison.
+/// Press M during play to export a report.
 /// </summary>
 public class AIMetricsCollector : MonoBehaviour
 {
-    #region ═══════════════════ SINGLETON ═══════════════════
+    #region Singleton
 
     public static AIMetricsCollector Instance { get; private set; }
 
     #endregion
 
-    #region ═══════════════════ SETTINGS ═══════════════════
+    #region Settings
 
-    [Header("═══ SETTINGS ═══")]
+    [Header("Settings")]
     [SerializeField] private KeyCode exportKey = KeyCode.M;
     [SerializeField] private bool showOnScreenStats = true;
     [SerializeField] private float updateInterval = 0.5f;
 
     #endregion
 
-    #region ═══════════════════ METRICS DATA ═══════════════════
+    #region Metrics Data
 
     // Session info
     private float sessionStartTime;
@@ -70,7 +54,7 @@ public class AIMetricsCollector : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ UNITY LIFECYCLE ═══════════════════
+    #region Unity Lifecycle
 
     private void Awake()
     {
@@ -107,7 +91,7 @@ public class AIMetricsCollector : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ INITIALIZATION ═══════════════════
+    #region Initialization
 
     private void InitializeMetrics()
     {
@@ -129,7 +113,7 @@ public class AIMetricsCollector : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ METRICS COLLECTION ═══════════════════
+    #region Metrics Collection
 
     private void UpdateMetrics()
     {
@@ -228,7 +212,7 @@ public class AIMetricsCollector : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ EXPORT ═══════════════════
+    #region Export
 
     private void ExportMetrics()
     {
@@ -242,7 +226,7 @@ public class AIMetricsCollector : MonoBehaviour
         sb.AppendLine($"Export Time: {System.DateTime.Now}");
         sb.AppendLine();
 
-        // ═══════════════════ CODE METRICS ═══════════════════
+        // Code Metrics
         sb.AppendLine("┌─────────────────────────────────────────────────────────────┐");
         sb.AppendLine("│                     CODE METRICS                            │");
         sb.AppendLine("├─────────────────────────────────────────────────────────────┤");
@@ -255,7 +239,7 @@ public class AIMetricsCollector : MonoBehaviour
         sb.AppendLine("└───────────────────────────┴──────────────┴─────────────────┘");
         sb.AppendLine();
 
-        // ═══════════════════ FSM RUNTIME METRICS ═══════════════════
+        // FSM Runtime Metrics
         sb.AppendLine("┌─────────────────────────────────────────────────────────────┐");
         sb.AppendLine("│                  FSM RUNTIME METRICS                        │");
         sb.AppendLine("├─────────────────────────────────────────────────────────────┤");
@@ -276,7 +260,7 @@ public class AIMetricsCollector : MonoBehaviour
         sb.AppendLine("└─────────────────────┴─────────────┴────────────────────────┘");
         sb.AppendLine();
 
-        // ═══════════════════ QUALITATIVE COMPARISON ═══════════════════
+        // Qualitative Comparison
         sb.AppendLine("┌─────────────────────────────────────────────────────────────┐");
         sb.AppendLine("│                QUALITATIVE COMPARISON                       │");
         sb.AppendLine("├─────────────────────────────────────────────────────────────┤");
@@ -293,7 +277,7 @@ public class AIMetricsCollector : MonoBehaviour
         sb.AppendLine("└────────────────────────┴──────────────────┴─────────────────┘");
         sb.AppendLine();
 
-        // ═══════════════════ SUMMARY ═══════════════════
+        // Summary
         sb.AppendLine("┌─────────────────────────────────────────────────────────────┐");
         sb.AppendLine("│                        SUMMARY                              │");
         sb.AppendLine("├─────────────────────────────────────────────────────────────┤");
@@ -323,7 +307,7 @@ public class AIMetricsCollector : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ ON-SCREEN DISPLAY ═══════════════════
+    #region On-Screen Display
 
     private void DrawOnScreenStats()
     {
@@ -343,7 +327,7 @@ public class AIMetricsCollector : MonoBehaviour
         float lineHeight = 18;
         float currentY = y + 5;
 
-        GUI.Label(new Rect(x + 5, currentY, width, lineHeight), "═══ AI METRICS (Press M to export) ═══", style);
+        GUI.Label(new Rect(x + 5, currentY, width, lineHeight), "AI METRICS (Press M to export)", style);
         currentY += lineHeight + 5;
 
         GUI.Label(new Rect(x + 5, currentY, width, lineHeight), $"Play Time: {totalPlayTime:F0}s", style);
@@ -384,7 +368,7 @@ public class AIMetricsCollector : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ HELPERS ═══════════════════
+    #region Helpers
 
     private float CalculateAverage(List<float> values)
     {

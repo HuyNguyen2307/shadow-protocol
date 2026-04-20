@@ -3,103 +3,79 @@ using UnityEngine.AI;
 using System;
 
 /// <summary>
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// ENEMY AI ADVANCED - Multi-Sensory AI with Memory + Communication
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// 
-/// Extends basic FSM with:
-/// - Vision Detection (VisionSensor)
-/// - Sound Detection (HearingSensor)  
-/// - Memory System (AIMemory)
-/// - Alert Levels (Relaxed → Suspicious → Alert → Combat)
-/// - Multi-AI Communication (AlertSystem)
-/// 
-/// STATE MACHINE:
-/// ┌─────────────────────────────────────────────────────────────────────────────┐
-/// │ PATROL ──────────────────────────────────────────────────────────────────── │
-/// │   ↓ (hear sound)           ↓ (see glimpse)           ↓ (full detection)    │
-/// │ INVESTIGATE ──────────── SUSPICIOUS ──────────────── CHASE                 │
-/// │   ↓ (nothing found)        ↓ (nothing found)          ↓ (lose sight)       │
-/// │ PATROL ◄───────────────── PATROL ◄─────────────────── SEARCH              │
-/// │                                                        ↓ (timeout)         │
-/// │                           ↑ (receive alert)           PATROL ◄──────────── │
-/// │                         RESPOND TO ALERT                                    │
-/// └─────────────────────────────────────────────────────────────────────────────┘
-/// 
-/// ═══════════════════════════════════════════════════════════════════════════════
+/// Finite-state-machine enemy AI integrating vision, hearing, episodic memory, and
+/// multi-agent alert broadcasting. Drives six discrete states (PATROL, INVESTIGATE,
+/// SUSPICIOUS, CHASE, SEARCH, RESPOND_ALERT) through sensor-threshold rules and
+/// timed transitions, with graceful degradation when optional components are absent.
 /// </summary>
 [RequireComponent(typeof(NavMeshAgent))]
 [RequireComponent(typeof(VisionSensor))]
 public class EnemyAI_Advanced : MonoBehaviour, IAlertListener
 {
-    #region ═══════════════════ ENUMS ═══════════════════
+    #region Inspector Settings
 
     public enum AIState
     {
-        PATROL,         // Normal patrol
-        INVESTIGATE,    // Heard something, checking it out
-        SUSPICIOUS,     // Saw something brief, on guard
-        CHASE,          // Full pursuit
-        SEARCH,         // Lost target, searching area
-        RESPOND_ALERT   // Responding to another enemy's alert
+        PATROL,
+        INVESTIGATE,
+        SUSPICIOUS,
+        CHASE,
+        SEARCH,
+        RESPOND_ALERT
     }
 
     public enum AlertLevel
     {
-        Relaxed,        // Normal patrol, not alert
-        Cautious,       // Heard something recently
-        Suspicious,     // Saw glimpse or multiple sounds
-        Alert,          // Actively searching/chasing
-        Combat          // In direct pursuit
+        Relaxed,
+        Cautious,
+        Suspicious,
+        Alert,
+        Combat
     }
 
-    #endregion
+    [Header("Sensors")]
+    [SerializeField] private VisionSensor _vision;
+    [SerializeField] private HearingSensor _hearing;
+    [SerializeField] private AIMemory _memory;
 
-    #region ═══════════════════ SERIALIZED FIELDS ═══════════════════
-
-    [Header("═══ SENSORS ═══")]
-    [SerializeField] private VisionSensor visionSensor;
-    [SerializeField] private HearingSensor hearingSensor;
-    [SerializeField] private AIMemory aiMemory;
-
-    [Header("═══ REFERENCES ═══")]
+    [Header("References")]
     [SerializeField] private Transform player;
-    [SerializeField] private Transform[] waypoints;
+    [SerializeField] private Transform[] _patrolRoute;
 
-    [Header("═══ MOVEMENT SPEEDS ═══")]
+    [Header("Movement Speeds")]
     [SerializeField] private float patrolSpeed = 2.5f;
     [SerializeField] private float investigateSpeed = 3.0f;
     [SerializeField] private float suspiciousSpeed = 3.5f;
     [SerializeField] private float chaseSpeed = 5.0f;
     [SerializeField] private float searchSpeed = 3.5f;
 
-    [Header("═══ PATROL SETTINGS ═══")]
+    [Header("Patrol Settings")]
     [SerializeField] private float waypointWaitTime = 2.0f;
     [SerializeField] private float waypointReachThreshold = 0.5f;
 
-    [Header("═══ DETECTION THRESHOLDS ═══")]
-    [Tooltip("Vision detection to trigger suspicious state")]
+    [Header("Detection Thresholds")]
+    [Tooltip("Vision detection fraction required to enter SUSPICIOUS — a threshold prevents reacting to single-frame glimpses.")]
     [Range(0f, 1f)]
     [SerializeField] private float suspiciousThreshold = 0.3f;
-    
-    [Tooltip("Vision detection to trigger chase")]
+
+    [Tooltip("Vision detection fraction required to enter CHASE — full meter means confident, unambiguous sighting.")]
     [Range(0f, 1f)]
     [SerializeField] private float chaseThreshold = 1.0f;
 
-    [Header("═══ CHASE SETTINGS ═══")]
+    [Header("Chase Settings")]
     [SerializeField] private float loseSightDuration = 2.0f;
     [SerializeField] private float catchDistance = 1.5f;
 
-    [Header("═══ SEARCH SETTINGS ═══")]
+    [Header("Search Settings")]
     [SerializeField] private float searchDuration = 8.0f;
     [SerializeField] private float searchScanSpeed = 90f;
     [SerializeField] private int searchPointsToCheck = 3;
 
-    [Header("═══ INVESTIGATE SETTINGS ═══")]
+    [Header("Investigate Settings")]
     [SerializeField] private float investigateDuration = 4.0f;
     [SerializeField] private float investigateLookAroundTime = 2.0f;
 
-    [Header("═══ ALERT COMMUNICATION ═══")]
+    [Header("Alert Communication")]
     [Tooltip("Should this enemy alert others when spotting player?")]
     [SerializeField] private bool canRaiseAlerts = true;
     [Tooltip("Should this enemy respond to alerts from others?")]
@@ -109,67 +85,108 @@ public class EnemyAI_Advanced : MonoBehaviour, IAlertListener
     [Tooltip("How long to investigate an alert position")]
     [SerializeField] private float alertResponseDuration = 6.0f;
 
-    [Header("═══ ALERT DECAY ═══")]
+    [Header("Alert Decay")]
     [SerializeField] private float alertDecayRate = 0.1f;
     [SerializeField] private float relaxedPatrolSpeedMultiplier = 0.8f;
 
-    [Header("═══ DEBUG ═══")]
+    [Header("Debug")]
     [SerializeField] private bool enableDebug = true;
 
     #endregion
 
-    #region ═══════════════════ PRIVATE FIELDS ═══════════════════
+    #region State
+
+    // Named constants replace all magic numbers so tuning values are self-documenting.
+    private const float AlertRaiseFastRate    = 2f;
+    private const float SuspiciousMinDwell   = 3f;
+    private const float SearchScanDwell      = 2f;
+    private const float AlertScanDwell       = 3f;
+    private const float SearchRadius         = 5f;
+    private const float SearchNavSampleRange = 3f;
+    private const int   SearchRetryLimit     = 5;
+    private const float AlertMeterSoundFloor  = 0.7f;
+    private const float AlertMeterCombatFloor = 0.6f;
+    private const float AlertMeterSuspFloor   = 0.5f;
+    private const float AlertMeterSpottedFloor = 0.3f;
+    private const float AlertMeterCombatThreshold    = 0.9f;
+    private const float AlertMeterAlertThreshold     = 0.7f;
+    private const float AlertMeterSuspiciousThreshold = 0.4f;
+    private const float AlertMeterCautiousThreshold  = 0.1f;
+    private const float VisionAlertWeight    = 0.5f;
+    private const float HearingAlertWeight   = 0.3f;
+    private const float SearchAlertFloor     = 0.6f;
 
     // Components
-    private NavMeshAgent navAgent;
-    
-    // State
-    private AIState currentState = AIState.PATROL;
-    private AlertLevel alertLevel = AlertLevel.Relaxed;
-    private float alertMeter = 0f; // 0-1, affects behavior
-    
+    private NavMeshAgent _navAgent;
+
+    // State machine
+    private AIState _currentState = AIState.PATROL;
+    private AlertLevel _alertLevel = AlertLevel.Relaxed;
+    private float _alertMeter = 0f;
+    private float _stateEnterTime;
+
+    // Sensor subscription guard — avoids a per-frame retry once sensors are live.
+    // HearingSensor is AddComponent'd at runtime, so subscription can't always
+    // happen in Awake; the guard lets Update wire it up on the first valid frame
+    // without paying the cost of repeated null checks thereafter.
+    private bool _sensorsReady = false;
+    private bool _isRegisteredWithAlertSystem = false;
+
     // Patrol
-    private int currentWaypointIndex = 0;
-    private float waypointWaitTimer = 0f;
-    private bool isWaitingAtWaypoint = false;
-    
+    private int   _patrolIndex = 0;
+    private float _waypointWaitTimer = 0f;
+    private bool  _isWaitingAtWaypoint = false;
+
     // Chase
-    private float lastPlayerSeenTime;
-    
-    // Alert Response
-    private Vector3 alertTargetPosition;
-    private float alertResponseStartTime;
-    private bool hasReachedAlertPosition = false;
-    
+    private float _lastPlayerSeenTime;
+    private Vector3 _lastKnownPosition;
+
+    // Alert response
+    private Vector3 _alertTargetPosition;
+    private float   _alertResponseStartTime;
+    private bool    _hasReachedAlertPosition = false;
+
     // Search
-    private Vector3 searchCenter;
-    private float searchStartTime;
-    private int searchPointsChecked = 0;
-    private float searchScanTimer = 0f;
-    private bool isScanning = false;
-    
+    private Vector3 _searchCenter;
+    private float   _searchStartTime;
+    private int     _searchPointsChecked = 0;
+    private float   _searchScanTimer = 0f;
+    private bool    _isScanning = false;
+
     // Investigate
-    private Vector3 investigateTarget;
-    private float investigateStartTime;
-    private bool isLookingAround = false;
-    
-    // Metrics
-    private float stateEnterTime;
+    private Vector3 _investigationPoint;
+    private float   _investigateStartTime;
+    private bool    _isLookingAround = false;
+
+    // SetDestination deduplication — NavMesh path recalculation is expensive;
+    // we track the last submitted destination and skip redundant calls.
+    private Vector3 _lastSetDestination = Vector3.positiveInfinity;
 
     #endregion
 
-    #region ═══════════════════ PUBLIC PROPERTIES ═══════════════════
+    #region Public Properties
 
-    public AIState State => currentState;
-    public string CurrentState => currentState.ToString();
-    public AlertLevel CurrentAlertLevel => alertLevel;
-    public float AlertMeter => alertMeter;
-    public float DetectionLevel => visionSensor?.DetectionMeter ?? 0f;
-    public bool CanSeePlayer => visionSensor?.CanSeePlayer ?? false;
+    /// <summary>Read by StealthMinimap and AIMetricsCollector — do not rename.</summary>
+    public AIState State => _currentState;
+
+    /// <summary>String representation of the current state for UI display.</summary>
+    public string CurrentState => _currentState.ToString();
+
+    /// <summary>Composite alert tier derived from sensor inputs.</summary>
+    public AlertLevel CurrentAlertLevel => _alertLevel;
+
+    /// <summary>Continuous 0-1 alert accumulator that drives AlertLevel tiers.</summary>
+    public float AlertMeter => _alertMeter;
+
+    /// <summary>Passthrough to VisionSensor's detection accumulator.</summary>
+    public float DetectionLevel => _vision?.DetectionMeter ?? 0f;
+
+    /// <summary>True when VisionSensor has line-of-sight to the player this frame.</summary>
+    public bool CanSeePlayer => _vision?.CanSeePlayer ?? false;
 
     #endregion
 
-    #region ═══════════════════ EVENTS ═══════════════════
+    #region Events
 
     public event Action<AIState> OnStateChanged;
     public event Action<AlertLevel> OnAlertLevelChanged;
@@ -177,61 +194,55 @@ public class EnemyAI_Advanced : MonoBehaviour, IAlertListener
 
     #endregion
 
-    #region ═══════════════════ UNITY LIFECYCLE ═══════════════════
+    #region Unity Lifecycle
 
     private void Awake()
     {
-        navAgent = GetComponent<NavMeshAgent>();
-        
-        // Auto-find sensors
-        if (visionSensor == null)
-            visionSensor = GetComponent<VisionSensor>();
-        if (hearingSensor == null)
-            hearingSensor = GetComponent<HearingSensor>();
-        if (aiMemory == null)
-            aiMemory = GetComponent<AIMemory>();
-        
-        // Add missing components
-        if (hearingSensor == null)
-            hearingSensor = gameObject.AddComponent<HearingSensor>();
-        if (aiMemory == null)
-            aiMemory = gameObject.AddComponent<AIMemory>();
+        _navAgent = GetComponent<NavMeshAgent>();
+
+        // Fall back to sibling components before AddComponent so we don't duplicate
+        // sensors that were assigned in the Inspector.
+        if (_vision == null)
+            _vision = GetComponent<VisionSensor>();
+        if (_hearing == null)
+            _hearing = GetComponent<HearingSensor>();
+        if (_memory == null)
+            _memory = GetComponent<AIMemory>();
+
+        if (_hearing == null)
+            _hearing = gameObject.AddComponent<HearingSensor>();
+        if (_memory == null)
+            _memory = gameObject.AddComponent<AIMemory>();
     }
 
     private void Start()
     {
-        // Find player
         if (player == null)
         {
             GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
             if (playerObj != null)
                 player = playerObj.transform;
         }
-        
-        // Subscribe to sensor events
-        SubscribeToEvents();
-        
-        // Register with AlertSystem for multi-AI communication
+
+        TrySubscribeToSensors();
         RegisterWithAlertSystem();
-        
-        // Start patrol
-        ChangeState(AIState.PATROL);
+        TransitionTo(AIState.PATROL);
     }
 
     private void OnDestroy()
     {
-        UnsubscribeFromEvents();
+        UnsubscribeFromSensors();
         UnregisterFromAlertSystem();
     }
 
     private void Update()
     {
-        // Retry subscription if not yet subscribed
-        if (!isSubscribed && hearingSensor != null)
-        {
-            SubscribeToEvents();
-        }
-        
+        // HearingSensor may be instantiated after Start() due to Unity's component
+        // initialization order, so we retry subscription until it succeeds, then
+        // permanently skip this branch via _sensorsReady to avoid per-frame overhead.
+        if (!_sensorsReady)
+            TrySubscribeToSensors();
+
         UpdateAlertLevel();
         UpdateCurrentState();
         CheckCatchCondition();
@@ -239,263 +250,117 @@ public class EnemyAI_Advanced : MonoBehaviour, IAlertListener
 
     #endregion
 
-    #region ═══════════════════ EVENT SUBSCRIPTIONS ═══════════════════
+    #region Sensor Integration
 
-    private bool isSubscribed = false;
-    
-    private void SubscribeToEvents()
+    private void TrySubscribeToSensors()
     {
-        if (hearingSensor != null && !isSubscribed)
-        {
-            hearingSensor.OnSoundInvestigate += HandleSoundInvestigate;
-            hearingSensor.OnSoundAlert += HandleSoundAlert;
-            isSubscribed = true;
-            Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: Subscribed to HearingSensor events!");
-        }
-        else if (hearingSensor == null)
-        {
-            Debug.LogWarning($"[EnemyAI_Advanced] {gameObject.name}: HearingSensor is NULL - cannot subscribe!");
-        }
+        if (_hearing == null)
+            return;
+
+        _hearing.OnSoundInvestigate += HandleSoundInvestigate;
+        _hearing.OnSoundAlert       += HandleSoundAlert;
+        _sensorsReady = true;
+
+        if (enableDebug)
+            Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: Subscribed to HearingSensor events.");
     }
 
-    private void UnsubscribeFromEvents()
+    private void UnsubscribeFromSensors()
     {
-        if (hearingSensor != null)
-        {
-            hearingSensor.OnSoundInvestigate -= HandleSoundInvestigate;
-            hearingSensor.OnSoundAlert -= HandleSoundAlert;
-        }
+        if (_hearing == null)
+            return;
+
+        _hearing.OnSoundInvestigate -= HandleSoundInvestigate;
+        _hearing.OnSoundAlert       -= HandleSoundAlert;
     }
 
     private void HandleSoundInvestigate(Vector3 position)
     {
-        Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: HandleSoundInvestigate CALLED! State: {currentState}, Position: {position}");
-        
-        if (currentState == AIState.PATROL || currentState == AIState.INVESTIGATE)
+        if (enableDebug)
+            Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: Sound investigate at {position}. State: {_currentState}");
+
+        if (_currentState != AIState.PATROL && _currentState != AIState.INVESTIGATE)
         {
-            investigateTarget = position;
-            ChangeState(AIState.INVESTIGATE);
-            
-            // Remember heard position
-            aiMemory?.RememberPlayerHeard(position);
-            
-            Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: >>> NOW INVESTIGATING at {position}!");
+            if (enableDebug)
+                Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: Ignored sound — currently in {_currentState}.");
+            return;
         }
-        else
-        {
-            Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: Ignored sound - currently in {currentState}");
-        }
+
+        _investigationPoint = position;
+        _memory?.RememberPlayerHeard(position);
+        TransitionTo(AIState.INVESTIGATE);
+
+        if (enableDebug)
+            Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: Investigating sound at {position}.");
     }
 
     private void HandleSoundAlert()
     {
-        alertMeter = Mathf.Max(alertMeter, 0.7f);
+        _alertMeter = Mathf.Max(_alertMeter, AlertMeterSoundFloor);
         UpdateAlertLevelFromMeter();
     }
 
     #endregion
 
-    #region ═══════════════════ ALERT SYSTEM ═══════════════════
-
-    private bool isRegisteredWithAlertSystem = false;
-
-    private void RegisterWithAlertSystem()
-    {
-        if (AlertSystem.Instance != null && !isRegisteredWithAlertSystem)
-        {
-            AlertSystem.Instance.RegisterListener(this);
-            isRegisteredWithAlertSystem = true;
-            
-            if (enableDebug)
-            {
-                Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: Registered with AlertSystem");
-            }
-        }
-    }
-
-    private void UnregisterFromAlertSystem()
-    {
-        if (AlertSystem.Instance != null && isRegisteredWithAlertSystem)
-        {
-            AlertSystem.Instance.UnregisterListener(this);
-            isRegisteredWithAlertSystem = false;
-        }
-    }
-
-    /// <summary>
-    /// Raise alert to notify other enemies
-    /// </summary>
-    private void RaiseAlertToOthers(AlertSystem.AlertType type)
-    {
-        if (!canRaiseAlerts || AlertSystem.Instance == null) return;
-        
-        Vector3 targetPos = player != null ? player.position : transform.position;
-        AlertSystem.Instance.RaiseAlert(type, transform.position, targetPos, this);
-        
-        if (enableDebug)
-        {
-            Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: Raised {type} alert!");
-        }
-    }
-
-    // ═══════════════════ IAlertListener Implementation ═══════════════════
-
-    /// <summary>
-    /// Called when another enemy raises an alert
-    /// </summary>
-    public void OnAlertReceived(AlertSystem.AlertData alert)
-    {
-        if (!respondsToAlerts) return;
-        
-        // Don't respond if already in high-priority state
-        if (currentState == AIState.CHASE || currentState == AIState.SEARCH)
-        {
-            if (enableDebug)
-            {
-                Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: Ignored alert - already in {currentState}");
-            }
-            return;
-        }
-        
-        // Respond based on alert type
-        switch (alert.Type)
-        {
-            case AlertSystem.AlertType.SUSPICIOUS:
-                // Become more alert but continue patrol
-                alertMeter = Mathf.Max(alertMeter, 0.3f);
-                UpdateAlertLevelFromMeter();
-                break;
-                
-            case AlertSystem.AlertType.SPOTTED:
-                // Investigate the location
-                if (currentState == AIState.PATROL || currentState == AIState.INVESTIGATE)
-                {
-                    investigateTarget = alert.TargetPosition;
-                    ChangeState(AIState.INVESTIGATE);
-                }
-                break;
-                
-            case AlertSystem.AlertType.COMBAT:
-            case AlertSystem.AlertType.BACKUP_REQUEST:
-                // Rush to help!
-                alertTargetPosition = alert.TargetPosition;
-                alertResponseStartTime = Time.time;
-                hasReachedAlertPosition = false;
-                ChangeState(AIState.RESPOND_ALERT);
-                
-                if (enableDebug)
-                {
-                    Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: Responding to COMBAT alert at {alert.TargetPosition}!");
-                }
-                break;
-                
-            case AlertSystem.AlertType.LOST:
-                // Help search the area
-                if (currentState == AIState.PATROL)
-                {
-                    investigateTarget = alert.TargetPosition;
-                    ChangeState(AIState.INVESTIGATE);
-                }
-                break;
-        }
-        
-        // Remember alert position
-        aiMemory?.RememberPlayerHeard(alert.TargetPosition);
-    }
-
-    /// <summary>
-    /// Get this enemy's position for distance calculations
-    /// </summary>
-    public Vector3 GetPosition()
-    {
-        return transform.position;
-    }
-
-    /// <summary>
-    /// Check if this enemy is currently in combat
-    /// </summary>
-    public bool IsInCombat()
-    {
-        return currentState == AIState.CHASE;
-    }
-
-    #endregion
-
-    #region ═══════════════════ STATE MACHINE ═══════════════════
+    #region State Machine
 
     private void UpdateCurrentState()
     {
-        // Check for vision-based state transitions first
         CheckVisionTransitions();
-        
-        // Then update current state
-        switch (currentState)
+
+        switch (_currentState)
         {
-            case AIState.PATROL:
-                UpdatePatrol();
-                break;
-            case AIState.INVESTIGATE:
-                UpdateInvestigate();
-                break;
-            case AIState.SUSPICIOUS:
-                UpdateSuspicious();
-                break;
-            case AIState.CHASE:
-                UpdateChase();
-                break;
-            case AIState.SEARCH:
-                UpdateSearch();
-                break;
-            case AIState.RESPOND_ALERT:
-                UpdateRespondAlert();
-                break;
+            case AIState.PATROL:        UpdatePatrol();       break;
+            case AIState.INVESTIGATE:   UpdateInvestigate();  break;
+            case AIState.SUSPICIOUS:    UpdateSuspicious();   break;
+            case AIState.CHASE:         UpdateChase();        break;
+            case AIState.SEARCH:        UpdateSearch();       break;
+            case AIState.RESPOND_ALERT: UpdateRespondAlert(); break;
         }
     }
 
     private void CheckVisionTransitions()
     {
-        if (visionSensor == null) return;
-        
-        float detection = visionSensor.DetectionMeter;
-        
-        // Full detection → Chase
-        if (detection >= chaseThreshold && currentState != AIState.CHASE)
+        if (_vision == null)
+            return;
+
+        float detection = _vision.DetectionMeter;
+
+        // Full detection always overrides any non-chase state immediately.
+        if (detection >= chaseThreshold && _currentState != AIState.CHASE)
         {
-            ChangeState(AIState.CHASE);
+            TransitionTo(AIState.CHASE);
             return;
         }
-        
-        // Partial detection → Suspicious (unless already chasing)
+
+        // A threshold for SUSPICIOUS (rather than reacting to any nonzero detection)
+        // prevents spurious state changes from momentary partial occlusion or sensor
+        // jitter — the player must maintain meaningful visibility before the enemy reacts.
         if (detection >= suspiciousThreshold && detection < chaseThreshold)
         {
-            if (currentState == AIState.PATROL || currentState == AIState.INVESTIGATE)
+            if (_currentState == AIState.PATROL || _currentState == AIState.INVESTIGATE)
             {
-                investigateTarget = player.position;
-                ChangeState(AIState.SUSPICIOUS);
+                _investigationPoint = player.position;
+                TransitionTo(AIState.SUSPICIOUS);
             }
         }
     }
 
-    private void ChangeState(AIState newState)
+    private void TransitionTo(AIState newState)
     {
-        if (currentState == newState) return;
-        
-        AIState previousState = currentState;
-        currentState = newState;
-        stateEnterTime = Time.time;
-        
-        // Exit current state
-        OnExitState(previousState);
-        
-        // Enter new state
+        if (_currentState == newState)
+            return;
+
+        AIState previous = _currentState;
+        _currentState   = newState;
+        _stateEnterTime = Time.time;
+
+        OnExitState(previous);
         OnEnterState(newState);
-        
         OnStateChanged?.Invoke(newState);
-        
+
         if (enableDebug)
-        {
-            Debug.Log($"[EnemyAI_Adv] {gameObject.name}: {previousState} → {newState}", this);
-        }
+            Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: {previous} → {newState}", this);
     }
 
     private void OnEnterState(AIState state)
@@ -503,57 +368,54 @@ public class EnemyAI_Advanced : MonoBehaviour, IAlertListener
         switch (state)
         {
             case AIState.PATROL:
-                navAgent.speed = patrolSpeed * GetAlertSpeedMultiplier();
-                navAgent.isStopped = false;  // IMPORTANT: Restart movement!
-                isWaitingAtWaypoint = false;
-                isLookingAround = false;
+                _navAgent.speed      = patrolSpeed * GetAlertSpeedMultiplier();
+                _navAgent.isStopped  = false;
+                _isWaitingAtWaypoint = false;
+                _isLookingAround     = false;
                 break;
-                
+
             case AIState.INVESTIGATE:
-                navAgent.speed = investigateSpeed;
-                investigateStartTime = Time.time;
-                isLookingAround = false;
-                navAgent.SetDestination(investigateTarget);
+                _navAgent.speed       = investigateSpeed;
+                _investigateStartTime = Time.time;
+                _isLookingAround      = false;
+                SetDestination(_investigationPoint);
                 break;
-                
+
             case AIState.SUSPICIOUS:
-                navAgent.speed = suspiciousSpeed;
-                alertMeter = Mathf.Max(alertMeter, 0.5f);
-                // Alert nearby enemies
+                _navAgent.speed = suspiciousSpeed;
+                _alertMeter     = Mathf.Max(_alertMeter, AlertMeterSuspFloor);
                 RaiseAlertToOthers(AlertSystem.AlertType.SPOTTED);
                 break;
-                
+
             case AIState.CHASE:
-                navAgent.speed = chaseSpeed;
-                navAgent.isStopped = false;
-                alertMeter = 1f;
+                _navAgent.speed     = chaseSpeed;
+                _navAgent.isStopped = false;
+                _alertMeter         = 1f;
                 UpdateAlertLevelFromMeter();
-                // ALERT OTHER ENEMIES!
                 RaiseAlertToOthers(AlertSystem.AlertType.COMBAT);
                 break;
-                
+
             case AIState.SEARCH:
-                navAgent.speed = searchSpeed;
-                searchCenter = aiMemory?.LastSeenPosition ?? transform.position;
-                searchStartTime = Time.time;
-                searchPointsChecked = 0;
-                isScanning = false;
+                _navAgent.speed      = searchSpeed;
+                _searchCenter        = _memory?.LastSeenPosition ?? transform.position;
+                _searchStartTime     = Time.time;
+                _searchPointsChecked = 0;
+                _isScanning          = false;
                 GenerateSearchPoint();
-                // Tell others we lost the target
+                // Broadcast so nearby allies converge on the same area instead of
+                // continuing unrelated patrols while the player is known to be close.
                 RaiseAlertToOthers(AlertSystem.AlertType.LOST);
                 break;
-                
+
             case AIState.RESPOND_ALERT:
-                navAgent.speed = respondAlertSpeed;
-                navAgent.isStopped = false;
-                alertMeter = Mathf.Max(alertMeter, 0.6f);
+                _navAgent.speed     = respondAlertSpeed;
+                _navAgent.isStopped = false;
+                _alertMeter         = Mathf.Max(_alertMeter, AlertMeterCombatFloor);
                 UpdateAlertLevelFromMeter();
-                navAgent.SetDestination(alertTargetPosition);
-                
+                SetDestination(_alertTargetPosition);
+
                 if (enableDebug)
-                {
-                    Debug.Log($"[EnemyAI_Adv] {gameObject.name}: Responding to alert at {alertTargetPosition}!");
-                }
+                    Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: Responding to alert at {_alertTargetPosition}.");
                 break;
         }
     }
@@ -563,324 +425,449 @@ public class EnemyAI_Advanced : MonoBehaviour, IAlertListener
         switch (state)
         {
             case AIState.CHASE:
-                // Remember where player was last seen
-                if (visionSensor != null && visionSensor.LastKnownPlayerPos != Vector3.zero)
+                if (_vision != null && _vision.LastKnownPlayerPos != Vector3.zero)
                 {
-                    aiMemory?.RememberPlayerSeen(visionSensor.LastKnownPlayerPos);
+                    _lastKnownPosition = _vision.LastKnownPlayerPos;
+                    _memory?.RememberPlayerSeen(_lastKnownPosition);
                 }
                 break;
-                
+
             case AIState.SEARCH:
-                // Mark searched areas
-                aiMemory?.MarkAsSearched(searchCenter);
+                _memory?.MarkAsSearched(_searchCenter);
                 break;
         }
     }
 
     #endregion
 
-    #region ═══════════════════ STATE UPDATES ═══════════════════
+    #region Patrol
 
     private void UpdatePatrol()
     {
-        if (waypoints == null || waypoints.Length == 0) return;
-        
-        if (isWaitingAtWaypoint)
+        if (_patrolRoute == null || _patrolRoute.Length == 0)
+            return;
+
+        if (_isWaitingAtWaypoint)
         {
-            waypointWaitTimer += Time.deltaTime;
-            
-            // Look around while waiting
+            _waypointWaitTimer += Time.deltaTime;
             LookAround(45f);
-            
-            if (waypointWaitTimer >= waypointWaitTime)
+
+            if (_waypointWaitTimer >= waypointWaitTime)
             {
-                isWaitingAtWaypoint = false;
-                navAgent.isStopped = false;  // Resume movement
+                _isWaitingAtWaypoint = false;
+                _navAgent.isStopped  = false;
                 AdvanceToNextWaypoint();
             }
+
+            return;
         }
-        else
-        {
-            // Ensure we're moving
-            navAgent.isStopped = false;
-            
-            // Move to current waypoint
-            if (waypoints[currentWaypointIndex] != null)
-            {
-                navAgent.SetDestination(waypoints[currentWaypointIndex].position);
-            }
-            
-            // Check if arrived
-            if (HasReachedDestination())
-            {
-                isWaitingAtWaypoint = true;
-                waypointWaitTimer = 0f;
-                navAgent.isStopped = true;
-            }
-        }
+
+        _navAgent.isStopped = false;
+
+        if (_patrolRoute[_patrolIndex] != null)
+            SetDestination(_patrolRoute[_patrolIndex].position);
+
+        if (!IsAtDestination())
+            return;
+
+        _isWaitingAtWaypoint = true;
+        _waypointWaitTimer   = 0f;
+        _navAgent.isStopped  = true;
     }
+
+    private void AdvanceToNextWaypoint()
+    {
+        _patrolIndex = (_patrolIndex + 1) % _patrolRoute.Length;
+
+        int safety = 0;
+        while (_patrolRoute[_patrolIndex] == null && safety < _patrolRoute.Length)
+        {
+            _patrolIndex = (_patrolIndex + 1) % _patrolRoute.Length;
+            safety++;
+        }
+
+        _navAgent.isStopped = false;
+    }
+
+    #endregion
+
+    #region Investigation
 
     private void UpdateInvestigate()
     {
-        float elapsed = Time.time - investigateStartTime;
-        
-        if (!isLookingAround)
-        {
-            // Move to investigate position
-            navAgent.isStopped = false;  // Ensure we're moving
-            navAgent.SetDestination(investigateTarget);
-            
-            if (HasReachedDestination())
-            {
-                isLookingAround = true;
-                navAgent.isStopped = true;
-                searchScanTimer = 0f;
-            }
-        }
-        else
-        {
-            // Look around at investigate position
-            LookAround(90f);
-            searchScanTimer += Time.deltaTime;
-            
-            if (searchScanTimer >= investigateLookAroundTime)
-            {
-                // Nothing found, return to patrol
-                aiMemory?.MarkAsSearched(investigateTarget);
-                ChangeState(AIState.PATROL);
-            }
-        }
-        
-        // Timeout
+        float elapsed = Time.time - _investigateStartTime;
+
+        // Hard timeout prevents the enemy from getting permanently stuck investigating
+        // a position it can never reach (e.g., behind a door).
         if (elapsed >= investigateDuration)
         {
-            ChangeState(AIState.PATROL);
+            TransitionTo(AIState.PATROL);
+            return;
+        }
+
+        if (!_isLookingAround)
+        {
+            _navAgent.isStopped = false;
+            SetDestination(_investigationPoint);
+
+            if (!IsAtDestination())
+                return;
+
+            _isLookingAround    = true;
+            _navAgent.isStopped = true;
+            _searchScanTimer    = 0f;
+            return;
+        }
+
+        LookAround(90f);
+        _searchScanTimer += Time.deltaTime;
+
+        if (_searchScanTimer >= investigateLookAroundTime)
+        {
+            _memory?.MarkAsSearched(_investigationPoint);
+            TransitionTo(AIState.PATROL);
         }
     }
 
     private void UpdateSuspicious()
     {
-        // Move toward suspicious position
-        navAgent.SetDestination(investigateTarget);
-        
-        // If detection drops, go back to patrol
-        if (visionSensor != null && visionSensor.DetectionMeter < suspiciousThreshold * 0.5f)
-        {
-            float elapsed = Time.time - stateEnterTime;
-            if (elapsed > 3f) // Stay suspicious for at least 3 seconds
-            {
-                ChangeState(AIState.PATROL);
-            }
-        }
+        SetDestination(_investigationPoint);
+
+        if (_vision == null || _vision.DetectionMeter >= suspiciousThreshold * 0.5f)
+            return;
+
+        float elapsed = Time.time - _stateEnterTime;
+        if (elapsed <= SuspiciousMinDwell)
+            return;
+
+        // Resuming movement is mandatory here — isStopped may be true from a prior
+        // waypoint wait, which would leave the NavMeshAgent frozen on re-entry to PATROL.
+        _navAgent.isStopped = false;
+        TransitionTo(AIState.PATROL);
     }
+
+    #endregion
+
+    #region Chase
 
     private void UpdateChase()
     {
-        if (player == null) return;
-        
-        // Update destination to player
-        navAgent.isStopped = false;
-        navAgent.SetDestination(player.position);
-        
-        // Track when we last saw player
-        if (visionSensor != null && visionSensor.CanSeePlayer)
+        if (player == null)
+            return;
+
+        _navAgent.isStopped = false;
+        SetDestination(player.position);
+
+        if (_vision != null && _vision.CanSeePlayer)
         {
-            lastPlayerSeenTime = Time.time;
-            aiMemory?.RememberPlayerSeen(player.position);
+            _lastPlayerSeenTime = Time.time;
+            _memory?.RememberPlayerSeen(player.position);
         }
-        
-        // Check if lost sight
-        float timeSinceSeen = Time.time - lastPlayerSeenTime;
-        if (timeSinceSeen > loseSightDuration && !visionSensor.CanSeePlayer)
-        {
-            ChangeState(AIState.SEARCH);
-        }
+
+        float timeSinceSeen = Time.time - _lastPlayerSeenTime;
+        if (timeSinceSeen > loseSightDuration && !(_vision?.CanSeePlayer ?? false))
+            TransitionTo(AIState.SEARCH);
     }
+
+    #endregion
+
+    #region Search
 
     private void UpdateSearch()
     {
-        float elapsed = Time.time - searchStartTime;
-        float totalDuration = searchDuration + (aiMemory?.GetSearchDurationBonus(searchCenter) ?? 0f);
-        
+        float elapsed       = Time.time - _searchStartTime;
+        float totalDuration = searchDuration + (_memory?.GetSearchDurationBonus(_searchCenter) ?? 0f);
+
         if (elapsed >= totalDuration)
         {
-            // Search timeout
-            visionSensor?.ResetDetection();
-            hearingSensor?.ResetHearing();
-            ChangeState(AIState.PATROL);
+            _vision?.ResetDetection();
+            _hearing?.ResetHearing();
+            TransitionTo(AIState.PATROL);
             return;
         }
-        
-        if (isScanning)
+
+        if (_isScanning)
         {
-            // Rotate to scan area
-            LookAround(searchScanSpeed * Time.deltaTime);
-            searchScanTimer += Time.deltaTime;
-            
-            if (searchScanTimer >= 2f) // Scan for 2 seconds at each point
-            {
-                isScanning = false;
-                searchPointsChecked++;
-                
-                if (searchPointsChecked >= searchPointsToCheck)
-                {
-                    // Checked all points
-                    ChangeState(AIState.PATROL);
-                }
-                else
-                {
-                    GenerateSearchPoint();
-                }
-            }
+            UpdateSearchScan();
+            return;
         }
-        else
+
+        if (IsAtDestination())
         {
-            // Move to search point
-            if (HasReachedDestination())
-            {
-                isScanning = true;
-                searchScanTimer = 0f;
-                navAgent.isStopped = true;
-            }
+            _isScanning         = true;
+            _searchScanTimer    = 0f;
+            _navAgent.isStopped = true;
         }
+    }
+
+    private void UpdateSearchScan()
+    {
+        LookAround(searchScanSpeed * Time.deltaTime);
+        _searchScanTimer += Time.deltaTime;
+
+        if (_searchScanTimer < SearchScanDwell)
+            return;
+
+        _isScanning = false;
+        _searchPointsChecked++;
+
+        // A queue of discrete points (rather than pure random walk) guarantees the
+        // enemy sweeps distinct positions and doesn't re-examine the same spot twice
+        // when the search radius is small relative to step size.
+        if (_searchPointsChecked >= searchPointsToCheck)
+        {
+            TransitionTo(AIState.PATROL);
+            return;
+        }
+
+        GenerateSearchPoint();
     }
 
     private void UpdateRespondAlert()
     {
-        float elapsed = Time.time - alertResponseStartTime;
-        
-        // Timeout - go back to patrol
+        float elapsed = Time.time - _alertResponseStartTime;
+
         if (elapsed >= alertResponseDuration)
         {
-            ChangeState(AIState.PATROL);
+            TransitionTo(AIState.PATROL);
             return;
         }
-        
-        if (!hasReachedAlertPosition)
+
+        if (!_hasReachedAlertPosition)
         {
-            // Move to alert position
-            navAgent.isStopped = false;
-            navAgent.SetDestination(alertTargetPosition);
-            
-            if (HasReachedDestination())
-            {
-                hasReachedAlertPosition = true;
-                navAgent.isStopped = true;
-                searchScanTimer = 0f;
-                
-                if (enableDebug)
-                {
-                    Debug.Log($"[EnemyAI_Adv] {gameObject.name}: Arrived at alert position, searching...");
-                }
-            }
+            _navAgent.isStopped = false;
+            SetDestination(_alertTargetPosition);
+
+            if (!IsAtDestination())
+                return;
+
+            _hasReachedAlertPosition = true;
+            _navAgent.isStopped      = true;
+            _searchScanTimer         = 0f;
+
+            if (enableDebug)
+                Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: Arrived at alert position — scanning.");
+
+            return;
+        }
+
+        LookAround(searchScanSpeed * Time.deltaTime);
+        _searchScanTimer += Time.deltaTime;
+
+        if (_searchScanTimer < AlertScanDwell)
+            return;
+
+        if (_alertMeter > AlertMeterSuspFloor)
+        {
+            _searchCenter = _alertTargetPosition;
+            TransitionTo(AIState.SEARCH);
         }
         else
         {
-            // Look around at alert position
-            LookAround(searchScanSpeed * Time.deltaTime);
-            searchScanTimer += Time.deltaTime;
-            
-            if (searchScanTimer >= 3f) // Look around for 3 seconds
-            {
-                // Nothing found, go to search or patrol
-                if (alertMeter > 0.5f)
-                {
-                    searchCenter = alertTargetPosition;
-                    ChangeState(AIState.SEARCH);
-                }
-                else
-                {
-                    ChangeState(AIState.PATROL);
-                }
-            }
+            TransitionTo(AIState.PATROL);
         }
     }
 
     #endregion
 
-    #region ═══════════════════ ALERT LEVEL ═══════════════════
+    #region Alert System
+
+    private void RegisterWithAlertSystem()
+    {
+        if (AlertSystem.Instance == null || _isRegisteredWithAlertSystem)
+            return;
+
+        AlertSystem.Instance.RegisterListener(this);
+        _isRegisteredWithAlertSystem = true;
+
+        if (enableDebug)
+            Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: Registered with AlertSystem.");
+    }
+
+    private void UnregisterFromAlertSystem()
+    {
+        if (AlertSystem.Instance == null || !_isRegisteredWithAlertSystem)
+            return;
+
+        AlertSystem.Instance.UnregisterListener(this);
+        _isRegisteredWithAlertSystem = false;
+    }
+
+    private void RaiseAlertToOthers(AlertSystem.AlertType type)
+    {
+        if (!canRaiseAlerts || AlertSystem.Instance == null)
+            return;
+
+        Vector3 targetPos = player != null ? player.position : transform.position;
+        AlertSystem.Instance.RaiseAlert(type, transform.position, targetPos, this);
+
+        if (enableDebug)
+            Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: Raised {type} alert.");
+    }
+
+    /// <summary>
+    /// Receives alert broadcasts from other agents via the AlertSystem. RESPOND_ALERT
+    /// is intentionally not a full detection state — the alert is positional hearsay
+    /// from a peer, not a first-hand sighting, so the enemy investigates rather than
+    /// immediately chasing an unconfirmed target.
+    /// </summary>
+    public void OnAlertReceived(AlertSystem.AlertData alert)
+    {
+        if (!respondsToAlerts)
+            return;
+
+        // CHASE and SEARCH are higher-priority states with confirmed threat knowledge;
+        // downgrading them in response to a peer hint would regress tactical quality.
+        if (_currentState == AIState.CHASE || _currentState == AIState.SEARCH)
+        {
+            if (enableDebug)
+                Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: Ignored alert — already in {_currentState}.");
+            return;
+        }
+
+        switch (alert.Type)
+        {
+            case AlertSystem.AlertType.SUSPICIOUS:
+                _alertMeter = Mathf.Max(_alertMeter, AlertMeterSpottedFloor);
+                UpdateAlertLevelFromMeter();
+                break;
+
+            case AlertSystem.AlertType.SPOTTED:
+                if (_currentState == AIState.PATROL || _currentState == AIState.INVESTIGATE)
+                {
+                    _investigationPoint = alert.TargetPosition;
+                    TransitionTo(AIState.INVESTIGATE);
+                }
+                break;
+
+            case AlertSystem.AlertType.COMBAT:
+            case AlertSystem.AlertType.BACKUP_REQUEST:
+                _alertTargetPosition     = alert.TargetPosition;
+                _alertResponseStartTime  = Time.time;
+                _hasReachedAlertPosition = false;
+                TransitionTo(AIState.RESPOND_ALERT);
+
+                if (enableDebug)
+                    Debug.Log($"[EnemyAI_Advanced] {gameObject.name}: Responding to COMBAT alert at {alert.TargetPosition}.");
+                break;
+
+            case AlertSystem.AlertType.LOST:
+                if (_currentState == AIState.PATROL)
+                {
+                    _investigationPoint = alert.TargetPosition;
+                    TransitionTo(AIState.INVESTIGATE);
+                }
+                break;
+        }
+
+        _memory?.RememberPlayerHeard(alert.TargetPosition);
+    }
+
+    /// <summary>Returns this agent's world position for AlertSystem distance sorting.</summary>
+    public Vector3 GetPosition() => transform.position;
+
+    /// <summary>Returns true when actively pursuing the player in CHASE state.</summary>
+    public bool IsInCombat() => _currentState == AIState.CHASE;
+
+    #endregion
+
+    #region Helpers
 
     private void UpdateAlertLevel()
     {
-        // Increase alert from sensors
-        float visionContrib = (visionSensor?.DetectionMeter ?? 0f) * 0.5f;
-        float hearingContrib = (hearingSensor?.SuspicionMeter ?? 0f) * 0.3f;
-        
-        float targetAlert = visionContrib + hearingContrib;
-        
-        if (currentState == AIState.CHASE)
-        {
+        float visionContrib  = (_vision?.DetectionMeter  ?? 0f) * VisionAlertWeight;
+        float hearingContrib = (_hearing?.SuspicionLevel ?? 0f) * HearingAlertWeight;
+        float targetAlert    = visionContrib + hearingContrib;
+
+        if (_currentState == AIState.CHASE)
             targetAlert = 1f;
-        }
-        else if (currentState == AIState.SEARCH)
-        {
-            targetAlert = Mathf.Max(targetAlert, 0.6f);
-        }
-        
-        // Lerp toward target
-        if (targetAlert > alertMeter)
-        {
-            alertMeter = Mathf.MoveTowards(alertMeter, targetAlert, Time.deltaTime * 2f);
-        }
-        else
-        {
-            alertMeter = Mathf.MoveTowards(alertMeter, targetAlert, alertDecayRate * Time.deltaTime);
-        }
-        
+        else if (_currentState == AIState.SEARCH)
+            targetAlert = Mathf.Max(targetAlert, SearchAlertFloor);
+
+        float rate = targetAlert > _alertMeter ? AlertRaiseFastRate : alertDecayRate;
+        _alertMeter = Mathf.MoveTowards(_alertMeter, targetAlert, rate * Time.deltaTime);
+
         UpdateAlertLevelFromMeter();
     }
 
     private void UpdateAlertLevelFromMeter()
     {
         AlertLevel newLevel;
-        
-        if (alertMeter >= 0.9f)
-            newLevel = AlertLevel.Combat;
-        else if (alertMeter >= 0.7f)
-            newLevel = AlertLevel.Alert;
-        else if (alertMeter >= 0.4f)
-            newLevel = AlertLevel.Suspicious;
-        else if (alertMeter >= 0.1f)
-            newLevel = AlertLevel.Cautious;
-        else
-            newLevel = AlertLevel.Relaxed;
-        
-        if (newLevel != alertLevel)
-        {
-            alertLevel = newLevel;
-            OnAlertLevelChanged?.Invoke(alertLevel);
-        }
+
+        if      (_alertMeter >= AlertMeterCombatThreshold)    newLevel = AlertLevel.Combat;
+        else if (_alertMeter >= AlertMeterAlertThreshold)     newLevel = AlertLevel.Alert;
+        else if (_alertMeter >= AlertMeterSuspiciousThreshold) newLevel = AlertLevel.Suspicious;
+        else if (_alertMeter >= AlertMeterCautiousThreshold)  newLevel = AlertLevel.Cautious;
+        else                                                   newLevel = AlertLevel.Relaxed;
+
+        if (newLevel == _alertLevel)
+            return;
+
+        _alertLevel = newLevel;
+        OnAlertLevelChanged?.Invoke(_alertLevel);
     }
 
     private float GetAlertSpeedMultiplier()
     {
-        return alertLevel == AlertLevel.Relaxed ? relaxedPatrolSpeedMultiplier : 1f;
+        return _alertLevel == AlertLevel.Relaxed ? relaxedPatrolSpeedMultiplier : 1f;
     }
 
-    #endregion
-
-    #region ═══════════════════ HELPER METHODS ═══════════════════
-
-    private bool HasReachedDestination()
+    private bool IsAtDestination()
     {
-        if (navAgent.pathPending) return false;
-        if (navAgent.remainingDistance > waypointReachThreshold) return false;
+        if (_navAgent.pathPending) return false;
+        if (_navAgent.remainingDistance > waypointReachThreshold) return false;
         return true;
     }
 
-    private void AdvanceToNextWaypoint()
+    /// <summary>
+    /// Wraps NavMeshAgent.SetDestination with deduplication — skips the call when
+    /// the requested position matches the last submitted one, avoiding unnecessary
+    /// path recalculations on repeated frames (e.g., chasing a stationary player).
+    /// </summary>
+    private void SetDestination(Vector3 destination)
     {
-        currentWaypointIndex = (currentWaypointIndex + 1) % waypoints.Length;
-        
-        // Skip null waypoints
-        int safety = 0;
-        while (waypoints[currentWaypointIndex] == null && safety < waypoints.Length)
+        if (destination == _lastSetDestination)
+            return;
+
+        _lastSetDestination = destination;
+        _navAgent.SetDestination(destination);
+    }
+
+    /// <summary>
+    /// Samples up to SearchRetryLimit candidate positions around the search center,
+    /// skipping recently visited ones. A retry loop (rather than a single fallback)
+    /// meaningfully increases coverage when the search center sits inside already-
+    /// searched space — common after the player doubles back on the enemy's route.
+    /// Falls back to last known position when all candidates are exhausted.
+    /// </summary>
+    private void GenerateSearchPoint()
+    {
+        for (int i = 0; i < SearchRetryLimit; i++)
         {
-            currentWaypointIndex = (currentWaypointIndex + 1) % waypoints.Length;
-            safety++;
+            Vector2 randomDir  = UnityEngine.Random.insideUnitCircle * SearchRadius;
+            Vector3 candidate  = _searchCenter + new Vector3(randomDir.x, 0f, randomDir.y);
+
+            if (_memory != null && _memory.WasRecentlySearched(candidate))
+                continue;
+
+            NavMeshHit hit;
+            if (!NavMesh.SamplePosition(candidate, out hit, SearchNavSampleRange, NavMesh.AllAreas))
+                continue;
+
+            _navAgent.isStopped = false;
+            SetDestination(hit.position);
+            return;
         }
-        
-        navAgent.isStopped = false;
+
+        // All retries exhausted — fall back to last known player position so the
+        // enemy doesn't idle silently when the search center is fully covered.
+        Vector3 fallback = _lastKnownPosition != Vector3.zero ? _lastKnownPosition : _searchCenter;
+        NavMeshHit fallbackHit;
+        if (NavMesh.SamplePosition(fallback, out fallbackHit, SearchNavSampleRange, NavMesh.AllAreas))
+        {
+            _navAgent.isStopped = false;
+            SetDestination(fallbackHit.position);
+        }
     }
 
     private void LookAround(float angle)
@@ -888,122 +875,99 @@ public class EnemyAI_Advanced : MonoBehaviour, IAlertListener
         transform.Rotate(0f, angle * Time.deltaTime, 0f);
     }
 
-    private void GenerateSearchPoint()
-    {
-        // Generate random point around search center
-        Vector2 randomDir = UnityEngine.Random.insideUnitCircle * 5f;
-        Vector3 searchPoint = searchCenter + new Vector3(randomDir.x, 0f, randomDir.y);
-        
-        // Skip recently searched areas
-        if (aiMemory != null && aiMemory.WasRecentlySearched(searchPoint))
-        {
-            randomDir = UnityEngine.Random.insideUnitCircle * 5f;
-            searchPoint = searchCenter + new Vector3(randomDir.x, 0f, randomDir.y);
-        }
-        
-        NavMeshHit hit;
-        if (NavMesh.SamplePosition(searchPoint, out hit, 3f, NavMesh.AllAreas))
-        {
-            navAgent.isStopped = false;
-            navAgent.SetDestination(hit.position);
-        }
-    }
-
     private void CheckCatchCondition()
     {
-        if (player == null || currentState != AIState.CHASE) return;
-        
-        float distance = Vector3.Distance(transform.position, player.position);
-        if (distance <= catchDistance)
-        {
+        if (player == null || _currentState != AIState.CHASE)
+            return;
+
+        if (Vector3.Distance(transform.position, player.position) <= catchDistance)
             OnPlayerCaught?.Invoke();
-        }
     }
 
     #endregion
 
-    #region ═══════════════════ DEBUG ═══════════════════
+    #region Debug
 
     private void OnDrawGizmos()
     {
-        if (!enableDebug) return;
-        
-        // Draw waypoints
-        if (waypoints != null)
+        if (!enableDebug)
+            return;
+
+        if (_patrolRoute != null)
         {
-            for (int i = 0; i < waypoints.Length; i++)
+            for (int i = 0; i < _patrolRoute.Length; i++)
             {
-                if (waypoints[i] == null) continue;
-                
-                bool isCurrent = Application.isPlaying && i == currentWaypointIndex;
-                Gizmos.color = isCurrent ? Color.cyan : Color.green;
-                Gizmos.DrawWireSphere(waypoints[i].position, isCurrent ? 0.7f : 0.5f);
+                if (_patrolRoute[i] == null)
+                    continue;
+
+                bool isCurrent = Application.isPlaying && i == _patrolIndex;
+                Gizmos.color   = isCurrent ? Color.cyan : Color.green;
+                Gizmos.DrawWireSphere(_patrolRoute[i].position, isCurrent ? 0.7f : 0.5f);
             }
         }
-        
-        // Draw state-specific
-        if (Application.isPlaying)
+
+        if (!Application.isPlaying)
+            return;
+
+        Gizmos.color = GetStateColor();
+        Gizmos.DrawWireSphere(transform.position + Vector3.up * 2.5f, 0.3f);
+
+        if (_currentState == AIState.SEARCH)
         {
-            Gizmos.color = GetStateColor();
-            Gizmos.DrawWireSphere(transform.position + Vector3.up * 2.5f, 0.3f);
-            
-            if (currentState == AIState.SEARCH)
-            {
-                Gizmos.color = Color.yellow;
-                Gizmos.DrawWireSphere(searchCenter, 5f);
-            }
-            else if (currentState == AIState.INVESTIGATE)
-            {
-                Gizmos.color = new Color(1f, 0.5f, 0f);
-                Gizmos.DrawLine(transform.position, investigateTarget);
-                Gizmos.DrawWireSphere(investigateTarget, 1f);
-            }
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawWireSphere(_searchCenter, SearchRadius);
+        }
+        else if (_currentState == AIState.INVESTIGATE)
+        {
+            Gizmos.color = new Color(1f, 0.5f, 0f);
+            Gizmos.DrawLine(transform.position, _investigationPoint);
+            Gizmos.DrawWireSphere(_investigationPoint, 1f);
         }
     }
 
     private Color GetStateColor()
     {
-        switch (currentState)
+        switch (_currentState)
         {
-            case AIState.PATROL: return Color.green;
-            case AIState.INVESTIGATE: return new Color(1f, 0.5f, 0f); // Orange
-            case AIState.SUSPICIOUS: return Color.yellow;
-            case AIState.CHASE: return Color.red;
-            case AIState.SEARCH: return Color.yellow;
-            case AIState.RESPOND_ALERT: return Color.magenta; // Purple for responding to alert
-            default: return Color.gray;
+            case AIState.PATROL:        return Color.green;
+            case AIState.INVESTIGATE:   return new Color(1f, 0.5f, 0f);
+            case AIState.SUSPICIOUS:    return Color.yellow;
+            case AIState.CHASE:         return Color.red;
+            case AIState.SEARCH:        return Color.yellow;
+            case AIState.RESPOND_ALERT: return Color.magenta;
+            default:                    return Color.gray;
         }
     }
 
     private void OnGUI()
     {
-        if (!enableDebug || !Application.isPlaying) return;
-        
+        if (!enableDebug || !Application.isPlaying)
+            return;
+
         Camera cam = Camera.main;
-        if (cam == null) return;
-        
+        if (cam == null)
+            return;
+
         Vector3 screenPos = cam.WorldToScreenPoint(transform.position + Vector3.up * 3f);
-        if (screenPos.z < 0) return;
-        
+        if (screenPos.z < 0)
+            return;
+
         float x = screenPos.x - 70;
         float y = Screen.height - screenPos.y;
-        
-        // Background
+
         GUI.color = new Color(0, 0, 0, 0.8f);
         GUI.DrawTexture(new Rect(x - 5, y - 5, 150, 65), Texture2D.whiteTexture);
-        
-        // State
+
         GUI.color = GetStateColor();
-        GUI.Label(new Rect(x, y, 140, 20), $"State: {currentState}");
-        
-        // Alert level
-        GUI.color = alertLevel >= AlertLevel.Alert ? Color.red : 
-                    alertLevel >= AlertLevel.Suspicious ? Color.yellow : Color.white;
-        GUI.Label(new Rect(x, y + 18, 140, 20), $"Alert: {alertLevel} ({alertMeter:F2})");
-        
-        // Detection
+        GUI.Label(new Rect(x, y, 140, 20), $"State: {_currentState}");
+
+        GUI.color = _alertLevel >= AlertLevel.Alert      ? Color.red
+                  : _alertLevel >= AlertLevel.Suspicious ? Color.yellow
+                  : Color.white;
+        GUI.Label(new Rect(x, y + 18, 140, 20), $"Alert: {_alertLevel} ({_alertMeter:F2})");
+
         GUI.color = Color.white;
-        GUI.Label(new Rect(x, y + 36, 140, 20), $"Vision: {(visionSensor?.DetectionMeter ?? 0f):P0}");
+        GUI.Label(new Rect(x, y + 36, 140, 20), $"Vision: {(_vision?.DetectionMeter ?? 0f):P0}");
     }
 
     #endregion

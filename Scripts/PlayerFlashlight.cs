@@ -1,56 +1,42 @@
 using UnityEngine;
 
 /// <summary>
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// PLAYER FLASHLIGHT - Stealth Game Lighting
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// 
-/// FEATURES:
-/// - Toggle on/off with F key
-/// - Spotlight that follows player direction
-/// - Adjustable range, angle, and intensity
-/// 
-/// SETUP:
-/// 1. Attach to Player
-/// 2. Script will auto-create Spotlight
-/// 3. Adjust settings in Inspector
-/// 
-/// ═══════════════════════════════════════════════════════════════════════════════
+/// Manages a togglable spotlight flashlight attached to the player.
 /// </summary>
 public class PlayerFlashlight : MonoBehaviour
 {
-    #region ═══════════════════ SETTINGS ═══════════════════
+#region Settings
 
-    [Header("═══ CONTROLS ═══")]
+    [Header("Controls")]
     [SerializeField] private KeyCode toggleKey = KeyCode.F;
     [SerializeField] private bool startOn = true;
 
-    [Header("═══ LIGHT SETTINGS ═══")]
+    [Header("Light Settings")]
     [SerializeField] private float lightRange = 15f;
     [SerializeField] private float spotAngle = 45f;
     [SerializeField] private float innerSpotAngle = 25f;
     [SerializeField] private float intensity = 2f;
     [SerializeField] private Color lightColor = new Color(1f, 0.95f, 0.8f); // Warm white
 
-    [Header("═══ POSITION ═══")]
+    [Header("Position")]
     [Tooltip("Offset from player center")]
     [SerializeField] private Vector3 lightOffset = new Vector3(0.3f, 1.2f, 0.3f);
     
-    [Header("═══ SMOOTH ROTATION ═══")]
+    [Header("Smooth Rotation")]
     [SerializeField] private bool smoothRotation = true;
     [SerializeField] private float rotationSpeed = 10f;
 
-    [Header("═══ SHADOWS ═══")]
+    [Header("Shadows")]
     [SerializeField] private bool castShadows = true;
     [SerializeField] private LightShadows shadowType = LightShadows.Soft;
 
-    [Header("═══ AUDIO (Optional) ═══")]
+    [Header("Audio (optional)")]
     [SerializeField] private AudioClip toggleSound;
     [SerializeField] private float soundVolume = 0.5f;
 
     #endregion
 
-    #region ═══════════════════ PRIVATE FIELDS ═══════════════════
+#region Private Fields
 
     private Light flashlight;
     private Transform cameraTransform;
@@ -59,13 +45,13 @@ public class PlayerFlashlight : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ PUBLIC PROPERTIES ═══════════════════
+#region Public Properties
 
     public bool IsOn => isOn;
 
     #endregion
 
-    #region ═══════════════════ UNITY LIFECYCLE ═══════════════════
+#region Unity Lifecycle
 
     private void Awake()
     {
@@ -91,7 +77,7 @@ public class PlayerFlashlight : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ SETUP ═══════════════════
+#region Setup
 
     private void CreateFlashlight()
     {
@@ -143,7 +129,7 @@ public class PlayerFlashlight : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ INPUT ═══════════════════
+#region Input
 
     private void HandleInput()
     {
@@ -155,7 +141,7 @@ public class PlayerFlashlight : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ FLASHLIGHT CONTROL ═══════════════════
+#region Flashlight Control
 
     public void ToggleFlashlight()
     {
@@ -217,7 +203,7 @@ public class PlayerFlashlight : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ DEBUG ═══════════════════
+#region Debug
 
     private void OnDrawGizmosSelected()
     {

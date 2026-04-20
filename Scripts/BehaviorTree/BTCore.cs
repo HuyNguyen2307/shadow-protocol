@@ -1,517 +1,482 @@
-using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// BEHAVIOR TREE - Core Framework
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// 
-/// Project: Shadow Protocol - Comparative Study of FSM vs Behavior Trees
-/// 
-/// PURPOSE:
-/// Lightweight Behavior Tree implementation for comparative analysis with FSM.
-/// Implements same enemy behaviors (Patrol, Chase, Search) using BT architecture.
-/// 
-/// ARCHITECTURE:
-/// - BTNode: Base class for all nodes
-/// - BTComposite: Selector, Sequence (has children)
-/// - BTDecorator: Modifies child behavior
-/// - BTLeaf: Action and Condition nodes (no children)
-/// 
-/// NODE TYPES:
-/// ┌─────────────────────────────────────────────────────────────┐
-/// │ COMPOSITE NODES (have multiple children)                    │
-/// │  • Selector: Returns SUCCESS if ANY child succeeds (OR)     │
-/// │  • Sequence: Returns SUCCESS if ALL children succeed (AND)  │
-/// ├─────────────────────────────────────────────────────────────┤
-/// │ DECORATOR NODES (have one child)                            │
-/// │  • Inverter: Inverts child result                           │
-/// │  • Repeater: Repeats child N times                          │
-/// ├─────────────────────────────────────────────────────────────┤
-/// │ LEAF NODES (no children)                                    │
-/// │  • Condition: Checks a condition, returns SUCCESS/FAILURE   │
-/// │  • Action: Performs action, returns SUCCESS/FAILURE/RUNNING │
-/// └─────────────────────────────────────────────────────────────┘
-/// 
-/// REFERENCES:
-/// - Isla, D. (2005) 'Handling Complexity in the Halo 2 AI', GDC
-/// - Champandard, A.J. (2007) 'Understanding Behavior Trees'
-/// - Millington & Funge (2009) AI for Games, Chapter 5
-/// 
-/// ═══════════════════════════════════════════════════════════════════════════════
+/// Lightweight Behavior Tree framework providing Selector, Sequence, Decorator,
+/// Condition, and Action nodes with a shared blackboard for inter-node communication.
+///
+/// Design philosophy: nodes are stateful and reentrant — each tick resumes from where
+/// the previous tick left off rather than restarting from scratch, which allows
+/// long-running actions to span multiple frames without extra bookkeeping.
 /// </summary>
 namespace BehaviorTree
 {
-    #region ═══════════════════ ENUMS ═══════════════════
+    #region Enums
 
     /// <summary>
-    /// Result of a node's execution.
+    /// Canonical result of a single node evaluation tick.
+    /// RUNNING signals the caller that this node needs more ticks to complete.
     /// </summary>
     public enum NodeState
     {
-        RUNNING,    // Node is still executing
-        SUCCESS,    // Node completed successfully
-        FAILURE     // Node failed
+        RUNNING,
+        SUCCESS,
+        FAILURE
     }
 
     #endregion
 
-    #region ═══════════════════ BASE NODE ═══════════════════
+
+    #region Base Node
 
     /// <summary>
-    /// Base class for all Behavior Tree nodes.
+    /// Abstract base for every node in the tree.
+    /// Holds the blackboard reference so all descendant nodes share one data store
+    /// without each needing their own pointer managed externally.
     /// </summary>
     public abstract class BTNode
     {
-        /// <summary>Current state of this node</summary>
+        /// <summary>Result of the most recent <see cref="Evaluate"/> call.</summary>
         public NodeState State { get; protected set; } = NodeState.FAILURE;
-        
-        /// <summary>Node name for debugging</summary>
+
+        /// <summary>Human-readable label used for debugging and visualization.</summary>
         public string Name { get; set; } = "Node";
-        
-        /// <summary>Parent node (null for root)</summary>
+
+        /// <summary>Reference to this node's parent; null on the root node.</summary>
         public BTNode Parent { get; set; }
-        
-        /// <summary>Shared data between nodes</summary>
-        protected Dictionary<string, object> blackboard;
-        
+
         /// <summary>
-        /// Execute this node.
+        /// Shared key-value store injected by <see cref="BehaviorTreeRunner"/>.
+        /// Kept as <c>Dictionary&lt;string, object&gt;</c> for flexibility; value-type
+        /// entries incur boxing overhead — acceptable given BT tick frequencies in games.
+        /// </summary>
+        protected Dictionary<string, object> _blackboard;
+
+        /// <summary>
+        /// Evaluates this node for one tick and returns the resulting <see cref="NodeState"/>.
         /// </summary>
         public abstract NodeState Evaluate();
-        
+
         /// <summary>
-        /// Reset node state (called when tree restarts).
+        /// Resets this node to its pre-execution state so the tree can be replayed
+        /// or restarted without reconstructing the node graph.
         /// </summary>
-        public virtual void Reset()
-        {
+        public virtual void Reset() {
             State = NodeState.FAILURE;
         }
-        
+
         /// <summary>
-        /// Set shared blackboard reference.
+        /// Propagates the shared blackboard reference down the node hierarchy.
+        /// Called once by <see cref="BehaviorTreeRunner.SetRoot"/> so individual nodes
+        /// never need to manage their own dictionary instances.
         /// </summary>
-        public virtual void SetBlackboard(Dictionary<string, object> bb)
-        {
-            blackboard = bb;
+        public virtual void SetBlackboard(Dictionary<string, object> bb) {
+            _blackboard = bb;
         }
-        
+
         /// <summary>
-        /// Get data from blackboard.
+        /// Reads a typed value from the blackboard, returning <c>default(T)</c>
+        /// when the key is absent rather than throwing, so callers can treat a
+        /// missing key as "not yet set" without extra existence checks.
         /// </summary>
-        protected T GetData<T>(string key)
-        {
-            if (blackboard != null && blackboard.TryGetValue(key, out object value))
-            {
+        protected T GetData<T>(string key) {
+            if (_blackboard != null && _blackboard.TryGetValue(key, out object value))
                 return (T)value;
-            }
+
             return default(T);
         }
-        
+
         /// <summary>
-        /// Set data in blackboard.
+        /// Writes a value into the blackboard.
+        /// The null guard exists because <see cref="SetBlackboard"/> may not have been
+        /// called if a node is evaluated in isolation during unit testing.
         /// </summary>
-        protected void SetData(string key, object value)
-        {
-            if (blackboard != null)
-            {
-                blackboard[key] = value;
-            }
+        protected void SetData(string key, object value) {
+            if (_blackboard != null)
+                _blackboard[key] = value;
         }
-        
+
         /// <summary>
-        /// Check if data exists in blackboard.
+        /// Returns true when the blackboard contains <paramref name="key"/>.
+        /// Nodes use this to distinguish "key absent" from "key present but null".
         /// </summary>
-        protected bool HasData(string key)
-        {
-            return blackboard != null && blackboard.ContainsKey(key);
+        protected bool HasData(string key) {
+            return _blackboard != null && _blackboard.ContainsKey(key);
         }
     }
 
     #endregion
 
-    #region ═══════════════════ COMPOSITE NODES ═══════════════════
+
+    #region Composite Nodes
 
     /// <summary>
-    /// Base class for composite nodes (nodes with children).
+    /// Base class for nodes that own an ordered list of child nodes.
+    /// Maintains <see cref="_activeChildIndex"/> so a composite can resume mid-list
+    /// across ticks when a child returns RUNNING.
     /// </summary>
     public abstract class BTComposite : BTNode
     {
-        protected List<BTNode> children = new List<BTNode>();
-        protected int currentChildIndex = 0;
-        
-        public BTComposite(string name = "Composite")
-        {
+        protected List<BTNode> _children = new List<BTNode>();
+        protected int _activeChildIndex = 0;
+
+        public BTComposite(string name = "Composite") {
             Name = name;
         }
-        
+
         /// <summary>
-        /// Add child node.
+        /// Attaches a child to this composite and wires the parent back-reference,
+        /// which the debugger uses to walk the tree upward from any node.
+        /// Returns <c>this</c> to support fluent builder chains.
         /// </summary>
-        public BTComposite AddChild(BTNode child)
-        {
+        public BTComposite AddChild(BTNode child) {
             child.Parent = this;
-            children.Add(child);
+            _children.Add(child);
             return this;
         }
-        
+
         /// <summary>
-        /// Add multiple children.
+        /// Convenience overload for adding several children in one call.
+        /// Returns <c>this</c> to support fluent builder chains.
         /// </summary>
-        public BTComposite AddChildren(params BTNode[] nodes)
-        {
+        public BTComposite AddChildren(params BTNode[] nodes) {
             foreach (var node in nodes)
-            {
                 AddChild(node);
-            }
+
             return this;
         }
-        
-        public override void Reset()
-        {
+
+        /// <summary>Read-only view of this composite's child list.</summary>
+        public List<BTNode> Children => _children;
+
+        public override void Reset() {
             base.Reset();
-            currentChildIndex = 0;
-            foreach (var child in children)
-            {
+            _activeChildIndex = 0;
+            foreach (var child in _children)
                 child.Reset();
-            }
         }
-        
-        public override void SetBlackboard(Dictionary<string, object> bb)
-        {
+
+        public override void SetBlackboard(Dictionary<string, object> bb) {
             base.SetBlackboard(bb);
-            foreach (var child in children)
-            {
+            foreach (var child in _children)
                 child.SetBlackboard(bb);
-            }
         }
-        
-        public List<BTNode> Children => children;
     }
 
     /// <summary>
-    /// SELECTOR (OR node): Returns SUCCESS if ANY child succeeds.
-    /// Tries children in order until one succeeds.
-    /// 
-    /// Use for: "Try these options until one works"
-    /// Example: Chase OR Search OR Patrol
+    /// OR-node: succeeds as soon as any child succeeds.
+    /// Models fallback priority — earlier children are preferred over later ones,
+    /// which lets designers express "try the best option first, fall back if it fails."
+    ///
+    /// A child returning RUNNING suspends iteration so that child continues next tick,
+    /// preventing redundant re-evaluation of already-passed siblings.
     /// </summary>
     public class Selector : BTComposite
     {
         public Selector(string name = "Selector") : base(name) { }
-        
-        public override NodeState Evaluate()
-        {
-            for (int i = currentChildIndex; i < children.Count; i++)
+
+        public override NodeState Evaluate() {
+            for (int i = _activeChildIndex; i < _children.Count; i++)
             {
-                currentChildIndex = i;
-                
-                switch (children[i].Evaluate())
+                _activeChildIndex = i;
+
+                switch (_children[i].Evaluate())
                 {
                     case NodeState.SUCCESS:
-                        currentChildIndex = 0;
-                        State = NodeState.SUCCESS;
-                        return State;
-                        
+                        _activeChildIndex = 0;
+                        return State = NodeState.SUCCESS;
+
                     case NodeState.RUNNING:
-                        State = NodeState.RUNNING;
-                        return State;
-                        
+                        return State = NodeState.RUNNING;
+
                     case NodeState.FAILURE:
-                        // Try next child
                         continue;
                 }
             }
-            
-            // All children failed
-            currentChildIndex = 0;
-            State = NodeState.FAILURE;
-            return State;
+
+            _activeChildIndex = 0;
+            return State = NodeState.FAILURE;
         }
     }
 
     /// <summary>
-    /// SEQUENCE (AND node): Returns SUCCESS only if ALL children succeed.
-    /// Executes children in order, stops on first failure.
-    /// 
-    /// Use for: "Do all these things in order"
-    /// Example: CheckPlayerVisible AND MoveToPlayer AND Attack
+    /// AND-node: succeeds only when every child succeeds in order.
+    /// Models precondition chains — a single failure aborts the remaining steps,
+    /// which avoids executing expensive actions when early conditions aren't met.
+    ///
+    /// A child returning RUNNING suspends iteration so the in-progress child
+    /// resumes on the next tick rather than restarting from the first child.
     /// </summary>
     public class Sequence : BTComposite
     {
         public Sequence(string name = "Sequence") : base(name) { }
-        
-        public override NodeState Evaluate()
-        {
-            for (int i = currentChildIndex; i < children.Count; i++)
+
+        public override NodeState Evaluate() {
+            for (int i = _activeChildIndex; i < _children.Count; i++)
             {
-                currentChildIndex = i;
-                
-                switch (children[i].Evaluate())
+                _activeChildIndex = i;
+
+                switch (_children[i].Evaluate())
                 {
                     case NodeState.SUCCESS:
-                        // Continue to next child
                         continue;
-                        
+
                     case NodeState.RUNNING:
-                        State = NodeState.RUNNING;
-                        return State;
-                        
+                        return State = NodeState.RUNNING;
+
                     case NodeState.FAILURE:
-                        currentChildIndex = 0;
-                        State = NodeState.FAILURE;
-                        return State;
+                        _activeChildIndex = 0;
+                        return State = NodeState.FAILURE;
                 }
             }
-            
-            // All children succeeded
-            currentChildIndex = 0;
-            State = NodeState.SUCCESS;
-            return State;
+
+            _activeChildIndex = 0;
+            return State = NodeState.SUCCESS;
         }
     }
 
     #endregion
 
-    #region ═══════════════════ DECORATOR NODES ═══════════════════
+
+    #region Decorator Nodes
 
     /// <summary>
-    /// Base class for decorator nodes (nodes with one child).
+    /// Abstract base for nodes that wrap exactly one child and modify its result or
+    /// control how many times it runs. Propagates blackboard and reset signals downward.
     /// </summary>
     public abstract class BTDecorator : BTNode
     {
-        protected BTNode child;
-        
-        public BTDecorator(BTNode child, string name = "Decorator")
-        {
-            this.child = child;
-            if (child != null) child.Parent = this;
+        protected BTNode _child;
+
+        public BTDecorator(BTNode child, string name = "Decorator") {
+            _child = child;
+            if (_child != null)
+                _child.Parent = this;
+
             Name = name;
         }
-        
-        public override void Reset()
-        {
+
+        public override void Reset() {
             base.Reset();
-            child?.Reset();
+            _child?.Reset();
         }
-        
-        public override void SetBlackboard(Dictionary<string, object> bb)
-        {
+
+        public override void SetBlackboard(Dictionary<string, object> bb) {
             base.SetBlackboard(bb);
-            child?.SetBlackboard(bb);
+            _child?.SetBlackboard(bb);
         }
     }
 
     /// <summary>
-    /// INVERTER: Inverts child result (SUCCESS ↔ FAILURE).
-    /// RUNNING remains RUNNING.
+    /// Flips SUCCESS to FAILURE and vice versa; RUNNING passes through unchanged.
+    /// Useful for expressing "this condition must NOT hold" without a dedicated
+    /// negative condition class for every check in the game.
+    ///
+    /// The null guard is retained because child can be legally omitted during
+    /// prototyping — failing safe is preferable to a NullReferenceException mid-tick.
     /// </summary>
     public class Inverter : BTDecorator
     {
         public Inverter(BTNode child) : base(child, "Inverter") { }
-        
-        public override NodeState Evaluate()
-        {
-            if (child == null)
+
+        public override NodeState Evaluate() {
+            if (_child == null)
+                return State = NodeState.FAILURE;
+
+            switch (_child.Evaluate())
             {
-                State = NodeState.FAILURE;
-                return State;
+                case NodeState.SUCCESS: return State = NodeState.FAILURE;
+                case NodeState.FAILURE: return State = NodeState.SUCCESS;
+                default:               return State = NodeState.RUNNING;
             }
-            
-            switch (child.Evaluate())
-            {
-                case NodeState.SUCCESS:
-                    State = NodeState.FAILURE;
-                    break;
-                case NodeState.FAILURE:
-                    State = NodeState.SUCCESS;
-                    break;
-                case NodeState.RUNNING:
-                    State = NodeState.RUNNING;
-                    break;
-            }
-            
-            return State;
         }
     }
 
     /// <summary>
-    /// SUCCEEDER: Always returns SUCCESS regardless of child result.
-    /// Useful for optional behaviors.
+    /// Always returns SUCCESS regardless of the child's result, including when
+    /// the child is null. Used to mark optional sub-trees that should never block
+    /// a parent Sequence from proceeding.
     /// </summary>
     public class Succeeder : BTDecorator
     {
         public Succeeder(BTNode child) : base(child, "Succeeder") { }
-        
-        public override NodeState Evaluate()
-        {
-            child?.Evaluate();
-            State = NodeState.SUCCESS;
-            return State;
+
+        public override NodeState Evaluate() {
+            _child?.Evaluate();
+            return State = NodeState.SUCCESS;
         }
     }
 
     /// <summary>
-    /// REPEAT UNTIL FAIL: Repeats child until it fails.
+    /// Keeps returning RUNNING until the child returns FAILURE, at which point
+    /// the decorator returns SUCCESS. This lets designers express "keep doing X
+    /// until it can no longer run" as a single composable unit rather than
+    /// embedding loop logic inside action nodes.
+    ///
+    /// The null guard is retained for the same reason as <see cref="Inverter"/>.
     /// </summary>
     public class RepeatUntilFail : BTDecorator
     {
         public RepeatUntilFail(BTNode child) : base(child, "RepeatUntilFail") { }
-        
-        public override NodeState Evaluate()
-        {
-            if (child == null)
-            {
-                State = NodeState.FAILURE;
-                return State;
-            }
-            
-            NodeState childState = child.Evaluate();
-            
-            if (childState == NodeState.FAILURE)
-            {
-                State = NodeState.SUCCESS;
-                return State;
-            }
-            
-            State = NodeState.RUNNING;
-            return State;
+
+        public override NodeState Evaluate() {
+            if (_child == null)
+                return State = NodeState.FAILURE;
+
+            if (_child.Evaluate() == NodeState.FAILURE)
+                return State = NodeState.SUCCESS;
+
+            return State = NodeState.RUNNING;
         }
     }
 
     #endregion
 
-    #region ═══════════════════ LEAF NODES ═══════════════════
+
+    #region Leaf Nodes
 
     /// <summary>
-    /// Base class for condition nodes.
-    /// Conditions check something and return SUCCESS or FAILURE (never RUNNING).
+    /// Semantic base for nodes that test world state.
+    /// Conditions must never return RUNNING — they exist to gate action sub-trees
+    /// based on a single synchronous predicate.
     /// </summary>
     public abstract class BTCondition : BTNode
     {
-        public BTCondition(string name = "Condition")
-        {
+        public BTCondition(string name = "Condition") {
             Name = name;
         }
     }
 
     /// <summary>
-    /// Base class for action nodes.
-    /// Actions perform something and can return SUCCESS, FAILURE, or RUNNING.
+    /// Semantic base for nodes that change world state or trigger game systems.
+    /// Actions may return RUNNING to signal work is still in progress across ticks.
     /// </summary>
     public abstract class BTAction : BTNode
     {
-        public BTAction(string name = "Action")
-        {
+        public BTAction(string name = "Action") {
             Name = name;
         }
     }
 
     /// <summary>
-    /// Generic condition using a delegate.
+    /// Inline condition backed by a delegate, eliminating boilerplate subclasses for
+    /// simple boolean checks that don't require their own state or blackboard access.
     /// </summary>
     public class ConditionNode : BTCondition
     {
-        private System.Func<bool> condition;
-        
-        public ConditionNode(string name, System.Func<bool> condition) : base(name)
-        {
-            this.condition = condition;
+        private readonly System.Func<bool> _condition;
+
+        public ConditionNode(string name, System.Func<bool> condition) : base(name) {
+            _condition = condition;
         }
-        
-        public override NodeState Evaluate()
-        {
-            State = condition() ? NodeState.SUCCESS : NodeState.FAILURE;
-            return State;
+
+        public override NodeState Evaluate() {
+            return State = _condition() ? NodeState.SUCCESS : NodeState.FAILURE;
         }
     }
 
     /// <summary>
-    /// Generic action using a delegate.
+    /// Inline action backed by a delegate, eliminating boilerplate subclasses for
+    /// simple actions that don't require their own state or blackboard access.
+    /// The delegate is responsible for returning the correct <see cref="NodeState"/>,
+    /// including RUNNING for multi-tick operations.
     /// </summary>
     public class ActionNode : BTAction
     {
-        private System.Func<NodeState> action;
-        
-        public ActionNode(string name, System.Func<NodeState> action) : base(name)
-        {
-            this.action = action;
+        private readonly System.Func<NodeState> _action;
+
+        public ActionNode(string name, System.Func<NodeState> action) : base(name) {
+            _action = action;
         }
-        
-        public override NodeState Evaluate()
-        {
-            State = action();
-            return State;
+
+        public override NodeState Evaluate() {
+            return State = _action();
         }
     }
 
     #endregion
 
-    #region ═══════════════════ BEHAVIOR TREE RUNNER ═══════════════════
+
+    #region Behavior Tree Runner
 
     /// <summary>
-    /// Main Behavior Tree class that manages execution.
+    /// Entry point for executing a behavior tree.
+    /// Owns the root node and the shared blackboard, acting as the single surface
+    /// through which MonoBehaviours drive the AI each frame via <see cref="Tick"/>.
     /// </summary>
     public class BehaviorTreeRunner
     {
-        private BTNode root;
-        private Dictionary<string, object> blackboard;
-        
-        /// <summary>Current state of the tree</summary>
-        public NodeState State => root?.State ?? NodeState.FAILURE;
-        
-        /// <summary>Shared data dictionary</summary>
-        public Dictionary<string, object> Blackboard => blackboard;
-        
-        public BehaviorTreeRunner()
-        {
-            blackboard = new Dictionary<string, object>();
-        }
-        
+        private BTNode _root;
+        private readonly Dictionary<string, object> _blackboard;
+
         /// <summary>
-        /// Set the root node of the tree.
+        /// The most recent state returned by the root node.
+        /// Returns FAILURE when no root has been set, matching the fail-safe convention
+        /// used throughout the framework.
         /// </summary>
-        public void SetRoot(BTNode node)
-        {
-            root = node;
-            root.SetBlackboard(blackboard);
-        }
-        
+        public NodeState State => _root?.State ?? NodeState.FAILURE;
+
         /// <summary>
-        /// Execute one tick of the behavior tree.
-        /// Call this every frame.
+        /// Direct access to the shared blackboard.
+        /// Exposed so the owning MonoBehaviour can seed or read data without going
+        /// through the typed helper methods.
+        ///
+        /// Note: stores all values as <c>object</c>, so value types are boxed.
+        /// This is a known tradeoff — acceptable at BT tick rates in this project.
         /// </summary>
-        public NodeState Tick()
-        {
-            if (root == null) return NodeState.FAILURE;
-            return root.Evaluate();
+        public Dictionary<string, object> Blackboard => _blackboard;
+
+        public BehaviorTreeRunner() {
+            _blackboard = new Dictionary<string, object>();
         }
-        
+
         /// <summary>
-        /// Reset the entire tree.
+        /// Assigns the root node and propagates the blackboard reference down
+        /// the entire node graph so subsequent <see cref="Tick"/> calls work correctly.
+        /// Must be called before the first <see cref="Tick"/>.
         /// </summary>
-        public void Reset()
-        {
-            root?.Reset();
+        public void SetRoot(BTNode node) {
+            _root = node;
+            _root.SetBlackboard(_blackboard);
         }
-        
+
         /// <summary>
-        /// Set data in blackboard.
+        /// Advances the tree by one evaluation step.
+        /// Should be called once per frame from the owning MonoBehaviour's Update.
+        /// Returns FAILURE immediately when no root has been set to prevent null faults
+        /// during late initialization.
         /// </summary>
-        public void SetData(string key, object value)
-        {
-            blackboard[key] = value;
+        public NodeState Tick() {
+            if (_root == null)
+                return NodeState.FAILURE;
+
+            return _root.Evaluate();
         }
-        
+
         /// <summary>
-        /// Get data from blackboard.
+        /// Resets the entire tree back to its initial state.
+        /// Call this when the AI re-enters an active state after being disabled,
+        /// rather than reconstructing the node graph from scratch each time.
         /// </summary>
-        public T GetData<T>(string key)
-        {
-            if (blackboard.TryGetValue(key, out object value))
-            {
+        public void Reset() {
+            _root?.Reset();
+        }
+
+        /// <summary>
+        /// Writes <paramref name="value"/> into the blackboard under <paramref name="key"/>.
+        /// </summary>
+        public void SetData(string key, object value) {
+            _blackboard[key] = value;
+        }
+
+        /// <summary>
+        /// Reads a typed value from the blackboard.
+        /// Returns <c>default(T)</c> when the key is absent — treat a missing key
+        /// as "not yet written" rather than an error condition.
+        /// </summary>
+        public T GetData<T>(string key) {
+            if (_blackboard.TryGetValue(key, out object value))
                 return (T)value;
-            }
+
             return default(T);
         }
     }

@@ -3,37 +3,17 @@ using System;
 using System.Collections.Generic;
 
 /// <summary>
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// ALERT SYSTEM - Multi-AI Communication Manager
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// 
-/// Manages communication between AI enemies:
-/// - Enemies can raise alerts when spotting player
-/// - Nearby enemies respond to alerts
-/// - Supports different alert levels
-/// 
-/// ALERT TYPES:
-/// - SUSPICIOUS: "I think I heard something" - nearby enemies become cautious
-/// - SPOTTED: "I see the intruder!" - nearby enemies investigate
-/// - COMBAT: "Engaging target!" - nearby enemies join chase
-/// - LOST: "Lost visual" - inform others player escaped
-/// 
-/// ACADEMIC RELEVANCE:
-/// - Demonstrates scalability of FSM vs BT
-/// - Adding coordination requires different approaches in each architecture
-/// - Tests maintainability when adding features
-/// 
-/// ═══════════════════════════════════════════════════════════════════════════════
+/// Manages alert communication between AI enemies, supporting range-based and global propagation.
 /// </summary>
 public class AlertSystem : MonoBehaviour
 {
-    #region ═══════════════════ SINGLETON ═══════════════════
+    #region Singleton
 
     public static AlertSystem Instance { get; private set; }
 
     #endregion
 
-    #region ═══════════════════ ENUMS ═══════════════════
+    #region Enums
 
     public enum AlertType
     {
@@ -53,9 +33,9 @@ public class AlertSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ SETTINGS ═══════════════════
+    #region Settings
 
-    [Header("═══ ALERT SETTINGS ═══")]
+    [Header("Alert Settings")]
     [Tooltip("Default range for voice alerts")]
     [SerializeField] private float defaultAlertRange = 20f;
     
@@ -65,24 +45,24 @@ public class AlertSystem : MonoBehaviour
     [Tooltip("Delay before alert propagates (simulates reaction time)")]
     [SerializeField] private float alertPropagationDelay = 0.5f;
 
-    [Header("═══ GLOBAL ALERT ═══")]
+    [Header("Global Alert")]
     [Tooltip("Time before global alert level decays")]
     [SerializeField] private float globalAlertDecayTime = 30f;
     
     [Tooltip("Current global alert level (0-1)")]
     [SerializeField] private float globalAlertLevel = 0f;
 
-    [Header("═══ COOLDOWNS ═══")]
+    [Header("Cooldowns")]
     [Tooltip("Minimum time between alerts from same enemy")]
     [SerializeField] private float alertCooldown = 3f;
 
-    [Header("═══ DEBUG ═══")]
+    [Header("Debug")]
     [SerializeField] private bool showDebugGizmos = true;
     [SerializeField] private bool logAlerts = true;
 
     #endregion
 
-    #region ═══════════════════ PRIVATE FIELDS ═══════════════════
+    #region Private Fields
 
     // Registered enemies
     private List<IAlertListener> listeners = new List<IAlertListener>();
@@ -97,7 +77,7 @@ public class AlertSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ STRUCTS ═══════════════════
+    #region Structs
 
     public struct AlertData
     {
@@ -127,7 +107,7 @@ public class AlertSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ EVENTS ═══════════════════
+    #region Events
 
     /// <summary>Fired when any alert is raised</summary>
     public event Action<AlertData> OnAlertRaised;
@@ -137,14 +117,14 @@ public class AlertSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ PUBLIC PROPERTIES ═══════════════════
+    #region Public Properties
 
     public float GlobalAlertLevel => globalAlertLevel;
     public int RegisteredListenerCount => listeners.Count;
 
     #endregion
 
-    #region ═══════════════════ UNITY LIFECYCLE ═══════════════════
+    #region Unity Lifecycle
 
     private void Awake()
     {
@@ -164,7 +144,7 @@ public class AlertSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ REGISTRATION ═══════════════════
+    #region Registration
 
     public void RegisterListener(IAlertListener listener)
     {
@@ -188,7 +168,7 @@ public class AlertSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ RAISE ALERTS ═══════════════════
+    #region Raise Alerts
 
     /// <summary>
     /// Raise an alert that nearby enemies can hear.
@@ -270,7 +250,7 @@ public class AlertSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ ALERT PROPAGATION ═══════════════════
+    #region Alert Propagation
 
     private void PropagateAlert(AlertData alert, float range, AlertPropagation propagation)
     {
@@ -349,7 +329,7 @@ public class AlertSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ GLOBAL ALERT ═══════════════════
+    #region Global Alert
 
     private void UpdateGlobalAlert(AlertType type)
     {
@@ -393,7 +373,7 @@ public class AlertSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ QUERIES ═══════════════════
+    #region Queries
 
     /// <summary>
     /// Get all enemies within range of a position
@@ -458,7 +438,7 @@ public class AlertSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ DEBUG ═══════════════════
+    #region Debug
 
     private void OnDrawGizmos()
     {

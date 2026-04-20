@@ -3,60 +3,45 @@ using UnityEngine.UI;
 using System.Collections.Generic;
 
 /// <summary>
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// STEALTH HUD - Player Detection Feedback
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// 
-/// Displays critical stealth information to the player:
-/// - Detection meter (how close to being spotted)
-/// - Threat direction indicators
-/// - Global alert level
-/// - Enemy awareness states
-/// 
-/// DESIGN PRINCIPLES:
-/// - Non-intrusive when safe
-/// - Clear warning when in danger
-/// - Directional awareness of threats
-/// 
-/// ═══════════════════════════════════════════════════════════════════════════════
+/// Renders the player detection meter, threat indicators, and danger vignette on screen.
 /// </summary>
 public class StealthHUD : MonoBehaviour
 {
-    #region ═══════════════════ SINGLETON ═══════════════════
+#region Singleton
 
     public static StealthHUD Instance { get; private set; }
 
     #endregion
 
-    #region ═══════════════════ SETTINGS ═══════════════════
+#region Settings
 
-    [Header("═══ DETECTION METER ═══")]
+    [Header("Detection Meter")]
     [SerializeField] private bool showDetectionMeter = true;
     [SerializeField] private Vector2 meterPosition = new Vector2(20, 20);
     [SerializeField] private Vector2 meterSize = new Vector2(200, 25);
     [SerializeField] private float meterFadeSpeed = 3f;
 
-    [Header("═══ THREAT INDICATOR ═══")]
+    [Header("Threat Indicator")]
     [SerializeField] private bool showThreatIndicator = true;
     [SerializeField] private float indicatorRadius = 100f;
     [SerializeField] private float indicatorSize = 30f;
 
-    [Header("═══ COLORS ═══")]
+    [Header("Colors")]
     [SerializeField] private Color safeColor = new Color(0.2f, 0.8f, 0.2f, 0.8f);
     [SerializeField] private Color cautionColor = new Color(1f, 0.8f, 0f, 0.9f);
     [SerializeField] private Color dangerColor = new Color(1f, 0.3f, 0.1f, 1f);
     [SerializeField] private Color combatColor = new Color(1f, 0f, 0f, 1f);
 
-    [Header("═══ VIGNETTE EFFECT ═══")]
+    [Header("Vignette Effect")]
     [SerializeField] private bool showVignette = true;
     [SerializeField] private float vignetteMaxAlpha = 0.4f;
 
-    [Header("═══ REFERENCES ═══")]
+    [Header("References")]
     [SerializeField] private Transform player;
 
     #endregion
 
-    #region ═══════════════════ PRIVATE FIELDS ═══════════════════
+#region Private Fields
 
     // Detection tracking
     private float maxDetection = 0f;
@@ -80,7 +65,7 @@ public class StealthHUD : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ STRUCTS ═══════════════════
+#region Structs
 
     private struct ThreatInfo
     {
@@ -92,7 +77,7 @@ public class StealthHUD : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ UNITY LIFECYCLE ═══════════════════
+#region Unity Lifecycle
 
     private void Awake()
     {
@@ -143,7 +128,7 @@ public class StealthHUD : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ SETUP ═══════════════════
+#region Setup
 
     private void CreateTextures()
     {
@@ -194,7 +179,7 @@ public class StealthHUD : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ DETECTION TRACKING ═══════════════════
+#region Detection Tracking
 
     private void UpdateDetectionTracking()
     {
@@ -222,7 +207,7 @@ public class StealthHUD : MonoBehaviour
             // Add hearing suspicion
             if (hearing != null)
             {
-                detection = Mathf.Max(detection, hearing.SuspicionMeter * 0.5f);
+                detection = Mathf.Max(detection, hearing.SuspicionLevel * 0.5f);
             }
 
             // Boost if enemy is in dangerous state
@@ -283,7 +268,7 @@ public class StealthHUD : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ GUI RENDERING ═══════════════════
+#region Gui Rendering
 
     private void OnGUI()
     {
@@ -431,7 +416,7 @@ public class StealthHUD : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ HELPERS ═══════════════════
+#region Helpers
 
     private Color GetDetectionColor()
     {
@@ -466,7 +451,7 @@ public class StealthHUD : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ PUBLIC METHODS ═══════════════════
+#region Public Methods
 
     /// <summary>
     /// Get current max detection level (0-1)

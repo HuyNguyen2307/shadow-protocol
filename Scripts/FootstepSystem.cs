@@ -2,26 +2,12 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// FOOTSTEP SOUND SYSTEM - Surface-based footstep audio
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// 
-/// FEATURES:
-/// - Different sounds for different surfaces (concrete, metal, grass, etc.)
-/// - Volume/pitch varies with movement speed
-/// - Integrates with PlayerNoiseSystem for AI detection
-/// 
-/// SETUP:
-/// 1. Attach to Player
-/// 2. Assign AudioClips for each surface type
-/// 3. Tag ground objects with surface type (optional)
-/// 
-/// ═══════════════════════════════════════════════════════════════════════════════
+/// Plays surface-based footstep audio and integrates with PlayerNoiseSystem for AI detection.
 /// </summary>
 [RequireComponent(typeof(AudioSource))]
 public class FootstepSystem : MonoBehaviour
 {
-    #region ═══════════════════ ENUMS ═══════════════════
+    #region Enums
 
     public enum SurfaceType
     {
@@ -36,13 +22,13 @@ public class FootstepSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ SETTINGS ═══════════════════
+    #region Settings
 
-    [Header("═══ DEBUG ═══")]
+    [Header("Debug")]
     [Tooltip("Show debug logs when sounds would play (even without audio files)")]
     [SerializeField] private bool debugMode = true;
 
-    [Header("═══ FOOTSTEP SOUNDS ═══")]
+    [Header("Footstep Sounds")]
     [SerializeField] private AudioClip[] concreteSteps;
     [SerializeField] private AudioClip[] metalSteps;
     [SerializeField] private AudioClip[] woodSteps;
@@ -51,7 +37,7 @@ public class FootstepSystem : MonoBehaviour
     [SerializeField] private AudioClip[] gravelSteps;
     [SerializeField] private AudioClip[] carpetSteps;
 
-    [Header("═══ TIMING ═══")]
+    [Header("Timing")]
     [Tooltip("Time between footsteps when walking")]
     [SerializeField] private float walkStepInterval = 0.5f;
     [Tooltip("Time between footsteps when sprinting")]
@@ -59,28 +45,28 @@ public class FootstepSystem : MonoBehaviour
     [Tooltip("Time between footsteps when crouching")]
     [SerializeField] private float crouchStepInterval = 0.7f;
 
-    [Header("═══ VOLUME ═══")]
+    [Header("Volume")]
     [SerializeField] private float walkVolume = 0.4f;
     [SerializeField] private float sprintVolume = 0.8f;
     [SerializeField] private float crouchVolume = 0.15f;
     [SerializeField] private float landingVolume = 0.6f;
 
-    [Header("═══ PITCH VARIATION ═══")]
+    [Header("Pitch Variation")]
     [SerializeField] private float minPitch = 0.9f;
     [SerializeField] private float maxPitch = 1.1f;
 
-    [Header("═══ SURFACE DETECTION ═══")]
+    [Header("Surface Detection")]
     [SerializeField] private LayerMask groundLayers;
     [SerializeField] private float raycastDistance = 0.3f;
     [SerializeField] private SurfaceType defaultSurface = SurfaceType.Concrete;
 
-    [Header("═══ LANDING SOUNDS ═══")]
+    [Header("Landing Sounds")]
     [SerializeField] private AudioClip[] landingSounds;
     [SerializeField] private float landingThreshold = 0.5f;
 
     #endregion
 
-    #region ═══════════════════ PRIVATE FIELDS ═══════════════════
+    #region Private Fields
 
     private AudioSource audioSource;
     private float stepTimer;
@@ -101,7 +87,7 @@ public class FootstepSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ UNITY LIFECYCLE ═══════════════════
+    #region Unity Lifecycle
 
     private void Awake()
     {
@@ -129,7 +115,7 @@ public class FootstepSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ INITIALIZATION ═══════════════════
+    #region Initialization
 
     private void InitializeSurfaceSounds()
     {
@@ -147,7 +133,7 @@ public class FootstepSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ MOVEMENT DETECTION ═══════════════════
+    #region Movement Detection
 
     private void DetectMovement()
     {
@@ -165,7 +151,7 @@ public class FootstepSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ SURFACE DETECTION ═══════════════════
+    #region Surface Detection
 
     private void DetectSurface()
     {
@@ -211,7 +197,7 @@ public class FootstepSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ FOOTSTEP PLAYBACK ═══════════════════
+    #region Footstep Playback
 
     private void HandleFootsteps()
     {
@@ -266,14 +252,14 @@ public class FootstepSystem : MonoBehaviour
         {
             string moveType = isCrouching ? "CROUCH" : (isSprinting ? "SPRINT" : "WALK");
             float volume = GetVolume();
-            Debug.Log($"[FootstepSystem] 🔊 STEP! Surface: {currentSurface}, Type: {moveType}, Volume: {volume:F2}");
+            Debug.Log($"[FootstepSystem] STEP! Surface: {currentSurface}, Type: {moveType}, Volume: {volume:F2}");
         }
         
         if (clips == null || clips.Length == 0) 
         {
             if (debugMode)
             {
-                Debug.LogWarning($"[FootstepSystem] ⚠️ No audio clips assigned for {currentSurface}! Assign clips in Inspector.");
+                Debug.LogWarning($"[FootstepSystem] No audio clips assigned for {currentSurface}! Assign clips in Inspector.");
             }
             return;
         }
@@ -299,7 +285,7 @@ public class FootstepSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ LANDING ═══════════════════
+    #region Landing
 
     private void HandleLanding()
     {
@@ -352,7 +338,7 @@ public class FootstepSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ PUBLIC METHODS ═══════════════════
+    #region Public Methods
 
     /// <summary>
     /// Force play a footstep sound

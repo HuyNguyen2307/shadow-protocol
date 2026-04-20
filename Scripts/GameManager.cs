@@ -3,20 +3,14 @@ using UnityEngine.SceneManagement;
 using System.Collections.Generic;
 
 /// <summary>
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// GAME MANAGER - Supports MULTIPLE Enemies (FSM & BT)
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// 
-/// Works with ANY NUMBER of enemies using either EnemyAI (FSM) or EnemyAI_BT.
-/// 
-/// ═══════════════════════════════════════════════════════════════════════════════
+/// Singleton game manager that tracks win/lose conditions and supports multiple enemy types (FSM, BT, Advanced).
 /// </summary>
 public class GameManager : MonoBehaviour
 {
-    // ==================== SINGLETON ====================
+    // SINGLETON
     public static GameManager Instance { get; private set; }
 
-    // ==================== GAME STATE ====================
+    // GAME STATE
     public enum GameState
     {
         Playing,
@@ -29,7 +23,7 @@ public class GameManager : MonoBehaviour
     [SerializeField] private GameState currentState = GameState.Playing;
     public GameState CurrentState => currentState;
 
-    // ==================== AI TYPE ====================
+    // AI TYPE
     public enum AIType { None, FSM, BehaviorTree, Advanced, Mixed }
     
     [Header("AI Detection")]
@@ -38,7 +32,7 @@ public class GameManager : MonoBehaviour
     public AIType DetectedAIType => detectedAIType;
     public int EnemyCount => enemyCount;
 
-    // ==================== REFERENCES ====================
+    // REFERENCES
     [Header("References")]
     public Transform player;
     
@@ -48,36 +42,36 @@ public class GameManager : MonoBehaviour
     private List<EnemyAI_Advanced> enemyAI_Advanced = new List<EnemyAI_Advanced>();
     private List<Transform> allEnemies = new List<Transform>();
 
-    // ==================== CATCH SETTINGS ====================
+    // CATCH SETTINGS
     [Header("Catch Settings")]
     public bool useDistanceCheck = true;
     public float catchDistance = 1.5f;
 
-    // ==================== UI SETTINGS ====================
+    // UI SETTINGS
     [Header("UI Settings")]
     public int mainTextSize = 72;
     public int instructionTextSize = 24;
     public Color winColor = Color.green;
     public Color loseColor = Color.red;
 
-    // ==================== AUDIO ====================
+    // AUDIO
     [Header("Audio (Optional)")]
     public AudioClip winSound;
     public AudioClip loseSound;
     private AudioSource audioSource;
 
-    // ==================== INTERNAL ====================
+    // INTERNAL
     private bool hasTriggeredEnd = false;
     private string endMessage = "";
     private string instructionMessage = "Press R to Restart";
     private Color currentColor = Color.white;
 
-    // ==================== EVENTS ====================
+    // EVENTS
     public System.Action OnGameWon;
     public System.Action OnGameLost;
     public System.Action OnGameRestarted;
 
-    // ==================== INITIALIZATION ====================
+    // INITIALIZATION
 
     private void Awake()
     {
@@ -235,7 +229,7 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // ==================== GAME LOOP ====================
+    // GAME LOOP
 
     private void Update()
     {
@@ -305,7 +299,7 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // ==================== GAME STATE METHODS ====================
+    // GAME STATE METHODS
 
     public void StartGame()
     {
@@ -365,7 +359,7 @@ public class GameManager : MonoBehaviour
         TriggerLose("CAUGHT!");
     }
 
-    // ==================== HELPER METHODS ====================
+    // HELPER METHODS
 
     /// <summary>
     /// Get the nearest enemy to player
@@ -426,7 +420,7 @@ public class GameManager : MonoBehaviour
         return allEnemies;
     }
 
-    // ==================== UI ====================
+    // UI
 
     private void OnGUI()
     {
@@ -482,7 +476,7 @@ public class GameManager : MonoBehaviour
         GUI.Label(new Rect(Screen.width - 200, 10, 190, 25), aiText, style);
     }
 
-    // ==================== DEBUG ====================
+    // DEBUG
 
     private void OnDrawGizmos()
     {

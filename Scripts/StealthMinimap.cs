@@ -2,45 +2,35 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// STEALTH MINIMAP - Top-down tactical view
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// 
-/// Shows:
-/// - Player position and direction
-/// - Enemy positions and states
-/// - Vision cones (optional)
-/// - Alert status
-/// 
-/// ═══════════════════════════════════════════════════════════════════════════════
+/// Renders a top-down minimap showing player position, enemy positions, and vision cones.
 /// </summary>
 public class StealthMinimap : MonoBehaviour
 {
-    #region ═══════════════════ SETTINGS ═══════════════════
+#region Settings
 
-    [Header("═══ POSITION & SIZE ═══")]
+    [Header("Position & Size")]
     [SerializeField] private Vector2 position = new Vector2(20, 20);
     [SerializeField] private float size = 180f;
     [SerializeField] private float zoom = 15f; // Units to show
 
-    [Header("═══ APPEARANCE ═══")]
+    [Header("Appearance")]
     [SerializeField] private Color backgroundColor = new Color(0, 0, 0, 0.7f);
     [SerializeField] private Color borderColor = new Color(0.3f, 0.3f, 0.3f, 0.8f);
     [SerializeField] private Color playerColor = Color.cyan;
     [SerializeField] private float playerSize = 10f;
 
-    [Header("═══ ENEMY DISPLAY ═══")]
+    [Header("Enemy Display")]
     [SerializeField] private bool showEnemies = true;
     [SerializeField] private bool showVisionCones = true;
     [SerializeField] private float enemySize = 8f;
     [SerializeField] private float visionConeAlpha = 0.2f;
 
-    [Header("═══ REFERENCES ═══")]
+    [Header("References")]
     [SerializeField] private Transform player;
 
     #endregion
 
-    #region ═══════════════════ PRIVATE FIELDS ═══════════════════
+#region Private Fields
 
     private Texture2D whiteTex;
     private Texture2D circleTex;
@@ -49,7 +39,7 @@ public class StealthMinimap : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ UNITY LIFECYCLE ═══════════════════
+#region Unity Lifecycle
 
     private void Start()
     {
@@ -82,7 +72,7 @@ public class StealthMinimap : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ SETUP ═══════════════════
+#region Setup
 
     private void CreateTextures()
     {
@@ -114,7 +104,7 @@ public class StealthMinimap : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ GUI ═══════════════════
+#region Gui
 
     private void OnGUI()
     {
@@ -258,7 +248,7 @@ public class StealthMinimap : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ HELPERS ═══════════════════
+#region Helpers
 
     private Color GetEnemyColor(EnemyAI_Advanced.AIState state)
     {

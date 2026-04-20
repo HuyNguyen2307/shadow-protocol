@@ -1,32 +1,17 @@
 using UnityEngine;
 
 /// <summary>
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// THIRD PERSON CAMERA - Over-the-Shoulder Style (Resident Evil style)
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// 
-/// FEATURES:
-/// - Follows player from behind and slightly to the right
-/// - Mouse controls camera rotation
-/// - Smooth follow and rotation
-/// - Collision detection to avoid clipping through walls
-/// 
-/// SETUP:
-/// 1. Attach to Main Camera
-/// 2. Assign Player transform
-/// 3. Adjust offset for desired view
-/// 
-/// ═══════════════════════════════════════════════════════════════════════════════
+/// Over-the-shoulder third-person camera with mouse rotation and wall collision avoidance.
 /// </summary>
 public class TPPCameraController : MonoBehaviour
 {
-    #region ═══════════════════ SETTINGS ═══════════════════
+#region Settings
 
-    [Header("═══ TARGET ═══")]
+    [Header("Target")]
     [SerializeField] private Transform player;
     [SerializeField] private float playerHeight = 1.5f;
 
-    [Header("═══ CAMERA POSITION ═══")]
+    [Header("Camera Position")]
     [Tooltip("Offset from player (X = right, Y = up, Z = back)")]
     [SerializeField] private Vector3 offset = new Vector3(0.5f, 0.5f, -2.5f);
     
@@ -36,26 +21,26 @@ public class TPPCameraController : MonoBehaviour
     [Tooltip("Maximum distance from player")]
     [SerializeField] private float maxDistance = 4f;
 
-    [Header("═══ ROTATION ═══")]
+    [Header("Rotation")]
     [SerializeField] private float mouseSensitivity = 2f;
     [SerializeField] private float minVerticalAngle = -30f;
     [SerializeField] private float maxVerticalAngle = 60f;
 
-    [Header("═══ SMOOTHING ═══")]
+    [Header("Smoothing")]
     [SerializeField] private float positionSmoothTime = 0.1f;
     [SerializeField] private float rotationSmoothTime = 0.05f;
 
-    [Header("═══ COLLISION ═══")]
+    [Header("Collision")]
     [SerializeField] private LayerMask collisionLayers;
     [SerializeField] private float collisionRadius = 0.2f;
     [SerializeField] private float collisionOffset = 0.1f;
 
-    [Header("═══ CURSOR ═══")]
+    [Header("Cursor")]
     [SerializeField] private bool lockCursor = true;
 
     #endregion
 
-    #region ═══════════════════ PRIVATE FIELDS ═══════════════════
+#region Private Fields
 
     private float currentYaw = 0f;
     private float currentPitch = 15f;
@@ -67,7 +52,7 @@ public class TPPCameraController : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ UNITY LIFECYCLE ═══════════════════
+#region Unity Lifecycle
 
     private void Start()
     {
@@ -111,7 +96,7 @@ public class TPPCameraController : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ INPUT ═══════════════════
+#region Input
 
     private void HandleInput()
     {
@@ -143,7 +128,7 @@ public class TPPCameraController : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ CAMERA UPDATE ═══════════════════
+#region Camera Update
 
     private void UpdateCameraPosition()
     {
@@ -186,7 +171,7 @@ public class TPPCameraController : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ PUBLIC METHODS ═══════════════════
+#region Public Methods
 
     /// <summary>
     /// Get the forward direction of the camera (for player movement)

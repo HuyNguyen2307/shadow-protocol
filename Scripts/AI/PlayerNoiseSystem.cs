@@ -3,56 +3,54 @@ using System;
 using System.Collections.Generic;
 
 /// <summary>
-/// ═══════════════════════════════════════════════════════════════════════════════
-/// PLAYER NOISE SYSTEM - Auto-detects movement (no PlayerController required!)
-/// ═══════════════════════════════════════════════════════════════════════════════
+/// Auto-detects player movement speed and surface to generate noise events for AI hearing.
 /// </summary>
 public class PlayerNoiseSystem : MonoBehaviour
 {
-    #region ═══════════════════ SINGLETON ═══════════════════
+    #region Singleton
     
     public static PlayerNoiseSystem Instance { get; private set; }
     
     #endregion
 
-    #region ═══════════════════ NOISE SETTINGS ═══════════════════
+    #region Noise Settings
 
-    [Header("═══ NOISE LEVELS ═══")]
+    [Header("Noise Levels")]
     [SerializeField] private float idleNoiseRadius = 0f;
     [SerializeField] private float crouchNoiseRadius = 2f;
     [SerializeField] private float walkNoiseRadius = 5f;
     [SerializeField] private float sprintNoiseRadius = 12f;
 
-    [Header("═══ SPEED THRESHOLDS ═══")]
+    [Header("Speed Thresholds")]
     [Tooltip("Speed below this = idle")]
     [SerializeField] private float idleSpeedThreshold = 0.1f;
     [Tooltip("Speed above this = sprinting")]
     [SerializeField] private float sprintSpeedThreshold = 5f;
 
-    [Header("═══ SURFACE MULTIPLIERS ═══")]
+    [Header("Surface Multipliers")]
     [SerializeField] private float normalSurfaceMultiplier = 1.0f;
     [SerializeField] private float metalSurfaceMultiplier = 1.5f;
     [SerializeField] private float softSurfaceMultiplier = 0.5f;
     [SerializeField] private float waterSurfaceMultiplier = 2.0f;
 
-    [Header("═══ NOISE GENERATION ═══")]
+    [Header("Noise Generation")]
     [SerializeField] private float noiseInterval = 0.3f;
     [SerializeField] private LayerMask groundLayerMask = ~0;
 
-    [Header("═══ DEBUG ═══")]
+    [Header("Debug")]
     [SerializeField] private bool showDebugGizmos = true;
     [SerializeField] private bool logNoiseEvents = false;
 
     #endregion
 
-    #region ═══════════════════ REFERENCES ═══════════════════
+    #region References
 
-    [Header("═══ REFERENCES ═══")]
+    [Header("References")]
     [SerializeField] private Transform player;
 
     #endregion
 
-    #region ═══════════════════ PRIVATE FIELDS ═══════════════════
+    #region Private Fields
 
     private float lastNoiseTime;
     private float currentNoiseRadius;
@@ -69,14 +67,14 @@ public class PlayerNoiseSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ ENUMS ═══════════════════
+    #region Enums
 
     public enum SurfaceType { Normal, Metal, Soft, Water }
     public enum NoiseType { Footstep, Landing, Interaction, Distraction }
 
     #endregion
 
-    #region ═══════════════════ PUBLIC PROPERTIES ═══════════════════
+    #region Public Properties
 
     public float CurrentNoiseRadius => currentNoiseRadius;
     public SurfaceType CurrentSurface => currentSurface;
@@ -86,13 +84,13 @@ public class PlayerNoiseSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ EVENTS ═══════════════════
+    #region Events
 
     public event Action<Vector3, float, NoiseType> OnNoiseGenerated;
 
     #endregion
 
-    #region ═══════════════════ UNITY LIFECYCLE ═══════════════════
+    #region Unity Lifecycle
 
     private void Awake()
     {
@@ -142,7 +140,7 @@ public class PlayerNoiseSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ MOVEMENT DETECTION ═══════════════════
+    #region Movement Detection
 
     private void UpdateMovementDetection()
     {
@@ -160,7 +158,7 @@ public class PlayerNoiseSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ SURFACE DETECTION ═══════════════════
+    #region Surface Detection
 
     private void UpdateCurrentSurface()
     {
@@ -203,7 +201,7 @@ public class PlayerNoiseSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ NOISE GENERATION ═══════════════════
+    #region Noise Generation
 
     private void UpdateNoiseGeneration()
     {
@@ -259,7 +257,7 @@ public class PlayerNoiseSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ LISTENER MANAGEMENT ═══════════════════
+    #region Listener Management
 
     public void RegisterListener(ISoundListener listener)
     {
@@ -277,7 +275,7 @@ public class PlayerNoiseSystem : MonoBehaviour
 
     #endregion
 
-    #region ═══════════════════ DEBUG ═══════════════════
+    #region Debug
 
     private void OnDrawGizmos()
     {
